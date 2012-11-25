@@ -27,11 +27,11 @@ http://python.org/download/
 
 You will find the following stuff in this repository:
 
-*DAQcontrol: This is a demo program of complete test panels. It has user controls to access via 
+* DAQcontrol: This is a demo program of complete test panels. It has user controls to access via 
 Comand-Response mode to most of the device functions, including: Analog Inputs, Analog Output, 
 Digital I/Os, and Timer/Counter functions (PWM, Capture and Counter).
 
-*EasyDAQ: This is another demo program, which provides an easy way to configure and perform stream 
+* EasyDAQ: This is another demo program, which provides an easy way to configure and perform stream 
 mode experiments. User can configure analog line, gain and scan rate for up to four simultaneous 
 experiments.
 
