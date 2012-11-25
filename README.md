@@ -1,7 +1,13 @@
 python-opendaq
 ==============
+- - -
+Python binding for openDAQ hardware.
 
-Python binding for openDAQ hardware
+openDAQ libraries and examples are compatible with Python 2.X. Python 3.X is not yet supported.
+
+support@open-daq.com
+
+* * *
 
 OpenDAQ is an open source acquisition instrument, 
 which provides user with several physical interaction capabilities such as analog inputs 
