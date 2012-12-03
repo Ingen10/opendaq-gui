@@ -15,54 +15,55 @@ from wx.lib.plot import PlotCanvas, PlotGraphics, PolyLine, PolyMarker
 
 
 #-----------------------------------------------------------------------------
-# Buscar puertos series disposibles. 
-# ENTRADAS:
-#   -num_ports : Numero de puertos a escanear. Por defecto 20
-#   -verbose   : Modo verboso True/False. Si esta activado se va 
-#                imprimiendo todo lo que va ocurriendo
-# DEVUELVE: 
-#    Una lista con todos los puertos encontrados. Cada elemento de la lista
-#    es una tupla con el numero del puerto y el del dispositivo 
+# Find available serial ports.
+# INPUTS:
+#-Num_ports: Number of ports scanned. Default 20
+#-Verbose: verbose mode True / False. If turned on will
+# print everything that is happening
+# Returns:
+# A list with all ports found. Each list item
+# is a tuple with the number of the port and the device
 #-----------------------------------------------------------------------------
+
 def scan(num_ports = 20, verbose=True):
    
-    #-- Lista de los dispositivos serie. Inicialmente vacia
-    dispositivos_serie = []
+    #-- List of serial devices. Empty at start
+    serial_dev = []
     
     if verbose:
-        print "Escanenado %d puertos serie:" % num_ports
+        print "Scan %d serial ports:" % num_ports
     
-    #-- Escanear num_port posibles puertos serie
+    #-- Scan num_port posible serial ports
     for i in range(num_ports):
     
         if verbose:
-            sys.stdout.write("puerto %d: " % i)
+            sys.stdout.write("Port %d: " % i)
             sys.stdout.flush()
     
         try:
       
-            #-- Abrir puerto serie
+            #-- Open serial port
             s = serial.Serial(i)
             
             if verbose: print "OK --> %s" % s.portstr
             
-            #-- Si no hay errores, anadir el numero y nombre a la lista
-            dispositivos_serie.append( (i, s.portstr))
+            #-- If no errors, add port name to the list
+            serial_dev.append( (i, s.portstr))
             
-            #-- Cerrar puerto
+            #-- Close port
             s.close()
             
-        #-- Si hay un error se ignora      
+        #-- Ignore possible errors     
         except:
             if verbose: print "NO"
             pass
-    #-- Devolver la lista de los dispositivos serie encontrados    
-    return dispositivos_serie
+    #-- Return list of serial devices    
+    return serial_dev
 
 
 def drawLinePlot(data):
-    line1 = PolyLine(data,legend='Wide Line',colour='green',width=1)
-    return PlotGraphics([line1],"ADC","Time (s)","Value")
+    line1 = PolyLine(data,legend='Wide Line',colour='red',width=1)
+    return PlotGraphics([line1],"ADC","Time (s)","Value (V)")
 
 class ComThread (threading.Thread):
     def __init__(self):
@@ -119,7 +120,7 @@ class TimerThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.running=1
-        self.delay=1
+        self.delay=0.25
         self.counterFlag=0
         self.captureFlag=0
         self.encoderFlag=0
@@ -144,26 +145,23 @@ class TimerThread (threading.Thread):
     def run(self):  
         self.running=1
         while self.running:
-            time.sleep(5)#time.sleep(self.delay)
+            time.sleep(self.delay)
             if self.counterFlag:
                 frame.page4.counterValue.Clear()
                 cnt= d.get_counter(0,frame.DaqError)
-                print cnt
                 frame.page4.counterValue.AppendText(str(cnt))
-                print "Counter"
             if self.captureFlag:
                 frame.page4.captureValue.Clear()
                 selection = frame.page4.rb.GetSelection()
                 cnt= d.get_capture(selection,frame.DaqError)
                 frame.page4.captureValue.AppendText(str(cnt))
-                print "Capture"
-                print selection
-                print cnt
             if self.encoderFlag:
-                cnt = d.get_encoder(frame.DaqError)*100
+                cnt = d.get_encoder(frame.DaqError)
+                frame.page4.currentPosition.Clear()
+                frame.page4.currentPosition.AppendText(str(cnt))
+                cnt*=100
                 cnt = cnt / frame.page4.encoderResolution
                 frame.page4.gauge.SetValue(pos=cnt)
-                print "Encoder"
                                 
 class PageOne(wx.Panel):
     def __init__(self, parent):
@@ -455,8 +453,8 @@ class PageFour(wx.Panel):
         counterSizer = wx.BoxSizer(wx.VERTICAL) 
         encoderSizer = wx.BoxSizer(wx.VERTICAL)
          
-        self.periodLabel = wx.StaticText(self, label="Period(us):")
-        self.dutyLabel = wx.StaticText(self, label="Duty(%):")
+        self.periodLabel = wx.StaticText(self, label="Period (us):")
+        self.dutyLabel = wx.StaticText(self, label="Duty (%):")
         
         self.periodEdit = wx.TextCtrl(self,style=wx.TE_CENTRE)
         self.dutyEdit = wx.Slider(self, -1, 0, 0, 100, pos=(0,0),size=(100,50),style=wx.SL_HORIZONTAL |  wx.SL_LABELS)
@@ -495,9 +493,9 @@ class PageFour(wx.Panel):
         self.Bind(wx.EVT_BUTTON,self.stopCaptureEvent,self.stopCapture)
         
         radioList=[]
-        radioList.append("Low pulse")
-        radioList.append("High pulse")
-        radioList.append("Whole pulse")
+        radioList.append("Low time")
+        radioList.append("High time")
+        radioList.append("Full period")
         self.rb = wx.RadioBox(self, label="Select width:",  choices=radioList, majorDimension=3,style=wx.RA_SPECIFY_COLS)
         
         captureSizer.Add(self.setCapture,0,wx.ALL,border=5)
@@ -511,15 +509,11 @@ class PageFour(wx.Panel):
         self.Bind(wx.EVT_BUTTON,self.stopEncoderEvent,self.stopEncoder)
         self.stopEncoder.Enable(False)
         self.gauge = wx.Gauge(self,range=100,size=(100,15))
-        radioList=[]
-        for i in range(6):
-            radioList.append("D%d"%(i+1))
-        self.encoderPIO = wx.ComboBox(self, size=(95,-1),choices=radioList, style=wx.CB_DROPDOWN)
-        self.encoderPIO.SetSelection(0)
+        self.currentPosition = wx.TextCtrl(self,style=wx.TE_READONLY | wx.TE_CENTRE)
         self.encoderValue = wx.TextCtrl(self,style=wx.TE_CENTRE)
         
         encoderSizer.Add(self.gauge,0,wx.ALL,border=5)
-        encoderSizer.Add(self.encoderPIO,0,wx.ALL,border=5) 
+        encoderSizer.Add(self.currentPosition,0,wx.ALL,border=5) 
         encoderSizer.Add(self.encoderValue,0,wx.ALL,border=5)
         encoderSizer.Add(self.setEncoder,0,wx.ALL,border=5)
         encoderSizer.Add(self.stopEncoder,0,wx.ALL,border=5)
@@ -624,6 +618,7 @@ class PageFour(wx.Panel):
         self.captureValue.Clear()
         
     def startEncoderEvent(self,event):
+        self.encoderValue.Enable(False)
         string= self.encoderValue.GetLineText(0)
         if string.isdigit():    
             self.encoderResolution = int(self.encoderValue.GetLineText(0))
@@ -637,7 +632,7 @@ class PageFour(wx.Panel):
             dlg.ShowModal()
             dlg.Destroy()   
             return
-        d.encoder_init(int(self.encoderPIO.GetSelection())+1, self.encoderResolution,frame.DaqError)
+        d.encoder_init(self.encoderResolution,frame.DaqError)
         self.setCounter.Enable(True)
         self.setCapture.Enable(True)
         self.setEncoder.Enable(False)
@@ -648,6 +643,7 @@ class PageFour(wx.Panel):
         timerThread.startEncoder()     
         
     def stopEncoderEvent(self,event):
+        self.encoderValue.Enable(True)
         d.encoder_stop(frame.DaqError)
         
         self.setCounter.Enable(True)
@@ -660,8 +656,14 @@ class PageFour(wx.Panel):
         timerThread.stop()
 class MainFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, title="DAQControl")
+        wx.Frame.__init__(self, None, title="DAQControl",style=wx.DEFAULT_FRAME_STYLE &~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX) )
         self.Bind(wx.EVT_CLOSE,self.OnClose)
+        
+        icon =wx.Icon("./icon64.ico",wx.BITMAP_TYPE_ICO)
+        self.SetIcon(icon)
+        
+        self.statusBar = self.CreateStatusBar()
+        self.statusBar.SetStatusText(d.id_config(self.DaqError))
         
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
@@ -678,7 +680,7 @@ class MainFrame(wx.Frame):
         self.nb.AddPage(self.page1, "Analog I/O")
         #self.nb.AddPage(self.page2, "Analog Output")
         self.nb.AddPage(self.page3, "Digital I/O")
-        self.nb.AddPage(self.page4, "Capture-Counter-PWM")
+        self.nb.AddPage(self.page4, "Timer-Counter")
         
         # finally, put the notebook in a sizer for the panel to manage
         # the layout
@@ -694,6 +696,8 @@ class MainFrame(wx.Frame):
         sz[1]+=50
         sz[0]+=10
         self.SetSize(sz)
+        
+        d.enableCRC(1, self.DaqError)
         
         self.gains=[]
         self.offset=[]
@@ -727,7 +731,7 @@ class InitThread (threading.Thread):
     def run(self):  
         for i in range(10):
             self.dial.gauge.SetValue(pos=i*10)
-            time.sleep(0.7)
+            time.sleep(0.1)
         self.dial.Close()
 
 

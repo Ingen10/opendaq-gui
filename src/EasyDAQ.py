@@ -9,52 +9,58 @@ import sys
 import wx
 from DAQ import *
 import threading
+import fractions
 import time
 from wx.lib.plot import PlotCanvas, PlotGraphics, PolyLine, PolyMarker
+from wx.lib.agw.floatspin import FloatSpin
+import numpy as np
+import csv
 
 #-----------------------------------------------------------------------------
-# Buscar puertos series disposibles. 
-# ENTRADAS:
-#   -num_ports : Numero de puertos a escanear. Por defecto 20
-#   -verbose   : Modo verboso True/False. Si esta activado se va 
-#                imprimiendo todo lo que va ocurriendo
-# DEVUELVE: 
-#    Una lista con todos los puertos encontrados. Cada elemento de la lista
-#    es una tupla con el numero del puerto y el del dispositivo 
+# Find available serial ports.
+# INPUTS:
+#-Num_ports: Number of ports scanned. Default 20
+#-Verbose: verbose mode True / False. If turned on will
+# print everything that is happening
+# Returns:
+# A list with all ports found. Each list item
+# is a tuple with the number of the port and the device
 #-----------------------------------------------------------------------------
+
 def scan(num_ports = 20, verbose=True):
-    #-- Lista de los dispositivos serie. Inicialmente vacia
-    dispositivos_serie = []
+   
+    #-- List of serial devices. Empty at start
+    serial_dev = []
     
     if verbose:
-        print "Escanenado %d puertos serie:" % num_ports
+        print "Scan %d serial ports:" % num_ports
     
-    #-- Escanear num_port posibles puertos serie
+    #-- Scan num_port posible serial ports
     for i in range(num_ports):
     
         if verbose:
-            sys.stdout.write("puerto %d: " % i)
+            sys.stdout.write("Port %d: " % i)
             sys.stdout.flush()
     
         try:
       
-            #-- Abrir puerto serie
+            #-- Open serial port
             s = serial.Serial(i)
             
             if verbose: print "OK --> %s" % s.portstr
             
-            #-- Si no hay errores, anadir el numero y nombre a la lista
-            dispositivos_serie.append( (i, s.portstr))
+            #-- If no errors, add port name to the list
+            serial_dev.append( (i, s.portstr))
             
-            #-- Cerrar puerto
+            #-- Close port
             s.close()
             
-        #-- Si hay un error se ignora      
+        #-- Ignore possible errors     
         except:
             if verbose: print "NO"
             pass
-    #-- Devolver la lista de los dispositivos serie encontrados    
-    return dispositivos_serie
+    #-- Return list of serial devices    
+    return serial_dev
 
 
 def drawLinePlot(data1,data2,data3,data4):
@@ -160,6 +166,7 @@ class ComThread (threading.Thread):
                 self.data_packet=[]
                 self.ch = []
                 d.stream_stop(self.data_packet,self.ch,frame.DaqError)
+                print len(self.data_packet)
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
                     data_int*=-frame.gains[frame.p.range[self.ch[i]]]
@@ -178,6 +185,195 @@ class ComThread (threading.Thread):
                         print "Destroying channel %d"%(i+1)
                         d.channel_destroy(i+1,frame.DaqError)
                 self.stopping=0
+                frame.p.buttonPlay.Enable(True)
+
+class StreamDialog(wx.Dialog):
+    def __init__(self,parent):
+        # Call wxDialog's __init__ method
+        wx.Dialog.__init__ ( self, parent, -1, 'Config', size = ( 200, 200 ) )
+        
+        boxSizer = wx.GridBagSizer(hgap=5, vgap=5)
+        mainLayout = wx.BoxSizer(wx.VERTICAL)
+        hSizer = wx.BoxSizer(wx.HORIZONTAL)
+        burstSizer = wx.BoxSizer(wx.VERTICAL)
+        
+        self.csvFlag=0
+        self.burstModeFlag=0
+        
+        self.dataLbl=[]
+        self.datagraphSizer=[]
+        dataSizer=[]
+        self.enable=[]
+        self.periodoLabel=wx.StaticText(self,label="Period (ms)")
+        self.periodoEdit=FloatSpin(self,value=frame.p.periodStreamOut,min_val=1,max_val=65535,increment=100,digits=3)
+        self.offsetLabel=wx.StaticText(self,label="Offset")
+        self.offsetEdit=FloatSpin(self,value=frame.p.offsetStreamOut/1000,min_val=-4.0,max_val=4.0,increment=0.1,digits=3)
+        self.amplitudeLabel=wx.StaticText(self,label="Amplitude")
+        self.amplitudeEdit=FloatSpin(self,value=frame.p.amplitudeStreamOut/1000,min_val=0.001,max_val=4.0,increment=0.1,digits=3)
+        
+        #sine
+        box = wx.StaticBox(self, -1, 'Sine', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[0], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+
+        self.datagraphSizer[0].Add(dataSizer[0],0,wx.ALL)
+        
+        #Square
+        box = wx.StaticBox(self, -1, 'Square', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[1], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        
+        self.tOnLabel=wx.StaticText(self,label="Time On")
+        self.tOnEdit=FloatSpin(self,value=frame.p.tOnStreamOut,min_val=1,max_val=65535,increment=100,digits=3)
+
+        self.datagraphSizer[1].Add(dataSizer[1],0,wx.ALL)
+    
+        #SawTooth
+        box = wx.StaticBox(self, -1, 'Sawtooth', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[2], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+
+        self.datagraphSizer[2].Add(dataSizer[2],0,wx.ALL)
+
+        #sTriangle
+        box = wx.StaticBox(self, -1, 'Triangle', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[3], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        
+        self.tRiseLabel=wx.StaticText(self,label="Rise time")
+        self.tRiseEdit=FloatSpin(self,value=frame.p.tRiseStreamOut,min_val=1,max_val=65535,increment=100,digits=3)
+   
+        self.datagraphSizer[3].Add(dataSizer[3],0,wx.ALL)
+        
+        hSizer.Add(self.periodoLabel,0,wx.ALL,border=10)
+        hSizer.Add(self.periodoEdit,0,wx.ALL,border=10)
+        hSizer.Add(self.offsetLabel,0,wx.ALL,border=10)
+        hSizer.Add(self.offsetEdit,0,wx.ALL,border=10)
+        hSizer.Add(self.amplitudeLabel,0,wx.ALL,border=10)
+        hSizer.Add(self.amplitudeEdit,0,wx.ALL,border=10)
+        
+        for i in range(4):
+            self.enable.append(wx.CheckBox(self,label='Enable',id=200+i))          
+            dataSizer[i].Add(self.enable[i],0,wx.ALL,border=10)          
+            self.Bind(wx.EVT_CHECKBOX,self.enableEvent,self.enable[i])
+
+        dataSizer[1].Add(self.tOnLabel,0,wx.ALL,border=10)
+        dataSizer[1].Add(self.tOnEdit,0,wx.ALL,border=10)
+        dataSizer[3].Add(self.tRiseLabel,0,wx.ALL,border=10)
+        dataSizer[3].Add(self.tRiseEdit,0,wx.ALL,border=10)
+
+        boxSizer.Add(self.datagraphSizer[0],pos=(0,0))
+        boxSizer.Add(self.datagraphSizer[1],pos=(0,1))
+        boxSizer.Add(self.datagraphSizer[2],pos=(1,0))
+        boxSizer.Add(self.datagraphSizer[3],pos=(1,1))
+        
+        self.csv=wx.Button(self,label="Import CSV")
+        self.Bind(wx.EVT_BUTTON,self.importEvent,self.csv)
+        
+        self.burstMode = wx.CheckBox(self,label='Burst Mode')
+        self.periodoBurstLabel=wx.StaticText(self,label="Period (us)")
+        self.periodoBurstEdit=FloatSpin(self,value=frame.p.periodStreamOut*100,min_val=100,max_val=65535,increment=10,digits=0)
+        burstSizer.Add(self.burstMode,0,wx.ALL)
+        burstSizer.Add(self.periodoBurstLabel,0,wx.ALL)
+        burstSizer.Add(self.periodoBurstEdit,0,wx.ALL)
+        
+        boxSizer.Add(self.csv,pos=(0,2))
+        boxSizer.Add(burstSizer,pos=(1,2))
+        
+        self.submit=wx.Button(self,label="Submit")
+        self.Bind(wx.EVT_BUTTON,self.submitEvent,self.submit)        
+
+        mainLayout.Add(boxSizer,0,wx.ALL,border=10)
+        mainLayout.Add(hSizer,0,wx.ALL,border=10)
+        mainLayout.Add(self.submit,0,wx.ALL,border=10)
+            
+        self.SetSizerAndFit(mainLayout)
+    def importEvent(self,event):
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.odq",wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            print self.filename
+            print self.dirname
+             
+            with open(self.dirname+"\\"+self.filename, 'rb') as csvfile:
+                reader = csv.reader(csvfile)
+                self.csvBuffer=[]
+                for index,row in enumerate(reader):
+                    for i in range(len(row)):
+                        self.csvBuffer.append(int(row[i]))
+        dlg.Destroy()       
+        self.csvFlag=1
+        for i in range(4):
+            self.enable[i].SetValue(0)
+            self.enable[i].Enable(False)
+        self.tOnEdit.Enable(False)
+        self.tRiseEdit.Enable(False)
+        self.amplitudeEdit.Enable(False)
+        self.offsetEdit.Enable(False)
+    def submitEvent(self,event):
+        self.burstModeFlag=self.burstMode.GetValue()
+        #check values 
+        if self.csvFlag:
+            self.period = self.periodoEdit.GetValue()
+            self.EndModal ( wx.ID_OK )
+            return 0    
+        self.signal=-1
+        for i in range(4):
+            if(self.enable[i].IsChecked()):
+                self.signal=i
+
+        self.amplitude = self.amplitudeEdit.GetValue()
+        self.amplitude = self.amplitude*1000
+        
+        self.offset = self.offsetEdit.GetValue()
+        self.offset = self.offset*1000
+        
+        self.ton = self.tOnEdit.GetValue()
+        self.tRise =self.tRiseEdit.GetValue()
+        if self.burstMode.GetValue():
+            self.period=self.periodoBurstEdit.GetValue()/100
+        else:
+            self.period = self.periodoEdit.GetValue()
+
+        if self.signal<0:
+            dlg = wx.MessageDialog(self,"At least one signal should be selected","Error!", wx.OK|wx.ICON_WARNING)
+            dlg.ShowModal()
+            dlg.Destroy()   
+            return 0   
+
+        if self.amplitude+abs(self.offset)>4000:
+            dlg = wx.MessageDialog(self,"Maximun value can not be greater than 4000","Error!", wx.OK|wx.ICON_WARNING)
+            dlg.ShowModal()
+            dlg.Destroy()   
+            return 0       
+       
+        if self.ton+1>=self.period:
+            dlg = wx.MessageDialog(self,"Time on can not be greater than period","Error!", wx.OK|wx.ICON_WARNING)
+            dlg.ShowModal()
+            dlg.Destroy()   
+            return 0 
+ 
+        if self.tRise+1>=self.period:
+            dlg = wx.MessageDialog(self,"Time rise can not be greater than period","Error!", wx.OK|wx.ICON_WARNING)
+            dlg.ShowModal()
+            dlg.Destroy()   
+            return 0 
+               
+        self.EndModal ( wx.ID_OK )
+    def enableEvent(self,event):
+        button = event.GetEventObject()
+        indice=button.GetId()-200
+        if(self.enable[indice].IsChecked()):
+            for i in range(4):
+                if i!=indice:
+                    self.enable[i].SetValue(0)
+
 
 class ConfigDialog ( wx.Dialog ):
     def __init__ ( self, parent, indice ):
@@ -320,6 +516,13 @@ class InterfazPanel(wx.Panel):
         self.npoint=[0,0,0,0]
         self.externFlag=[0,0,0,0]
         
+        self.burstModeStreamOut=0
+        self.amplitudeStreamOut=1000
+        self.offsetStreamOut=1000
+        self.tOnStreamOut=5
+        self.tRiseStreamOut=5
+        self.periodStreamOut=15
+        
         self.configure=[]
         self.color=[]
     
@@ -357,8 +560,25 @@ class InterfazPanel(wx.Panel):
             
             self.datagraphSizer[i].Add(dataSizer[i],0,wx.ALL)
             datasSizer.Add(self.datagraphSizer[i],0,wx.ALL,border=10)
-           
             
+        #stream out panel
+        box = wx.StaticBox(self, -1, 'Stream out', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        
+        self.enableCheck.append(wx.CheckBox(self,label="Enable"))
+        self.Bind(wx.EVT_CHECKBOX,self.streamEnable,self.enableCheck[4])
+        self.enableCheck[4].SetValue(False)
+        dataSizer[4].Add(self.enableCheck[4],0,wx.ALL,border=10)
+           
+        self.configure.append(wx.Button(self,id=400,label="Configure"))
+        self.Bind(wx.EVT_BUTTON,self.configureStream,self.configure[4])
+        dataSizer[4].Add(self.configure[4],0,wx.ALL,border=10)
+        
+        self.datagraphSizer[4].Add(dataSizer[4],0,wx.ALL)
+        datasSizer.Add(self.datagraphSizer[4],0,wx.ALL,border=10)
+           
         self.buttonPlay = wx.Button(self, label="Play")
         self.Bind(wx.EVT_BUTTON, self.PlayEvent,self.buttonPlay)
         self.buttonStop = wx.Button(self, label="Stop")
@@ -380,6 +600,41 @@ class InterfazPanel(wx.Panel):
         self.gains=[]
         self.offset=[]
         d.get_calib(self.gains,self.offset,parent.DaqError)
+        
+    def configureStream(self,event):
+        
+        dlg = StreamDialog(self)
+        if dlg.ShowModal()==wx.ID_OK:
+            self.burstModeStreamOut=dlg.burstModeFlag
+            print "Burst mode",self.burstModeStreamOut
+            if dlg.csvFlag:
+                self.buffer=dlg.csvBuffer[:140]
+                self.interval=int(dlg.period/(len(self.buffer)))
+                print "CSV interval",self.interval
+            else:
+                self.periodStreamOut=dlg.period;
+                self.amplitudeStreamOut=dlg.amplitude
+                self.offsetStreamOut=dlg.offset
+                self.signalStreamOut=dlg.signal
+                self.tRiseStreamOut=dlg.tRise
+                self.tOnStreamOut=dlg.ton
+                self.signalCreate()
+        dlg.Destroy()
+        self.streamEnable(0)
+        
+    def streamEnable(self,event):
+        if self.enableCheck[4].IsChecked():
+            if self.burstModeStreamOut:
+                for i in range(3):
+                    self.enableCheck[i].SetValue(0)
+                    self.enableCheck[i].Enable(False)
+            self.enableCheck[3].SetValue(0)
+            self.enableCheck[3].Enable(False)
+        else:
+            for i in range(4):
+                    self.enableCheck[i].SetValue(0)
+                    self.enableCheck[i].Enable(True)          
+        
         
     def configureEvent(self,event):
         button = event.GetEventObject()
@@ -405,8 +660,6 @@ class InterfazPanel(wx.Panel):
                 self.rate[indice] = int(dlg.editrate.GetLineText(0))
                 self.externFlag[indice] = 0
             
-            print self.externFlag    
-            
             self.samples[indice] = int(dlg.editsamples.GetLineText(0))
             
             self.mode[indice] = dlg.editmode.GetCurrentSelection()
@@ -428,26 +681,131 @@ class InterfazPanel(wx.Panel):
                 
                 if self.externFlag[i]==1:
                     d.external_create(i+1,0,frame.DaqError)
-                    print "External"
                 else:
-                    print "No external"
                     d.stream_create(i+1, self.rate[i],frame.DaqError)
                 d.channel_setup(i+1,self.npoint[i],self.mode[i],frame.DaqError) #mode continuous
                 d.channel_cfg(i+1, 0, self.ch1[i], self.ch2[i], self.range[i],self.samples[i],frame.DaqError) #analog input
+                   
+        if self.enableCheck[4].GetValue():
+            print "interval",self.interval
+            if self.burstModeStreamOut:
+                d.burst_create(self.interval*100,frame.DaqError)
+                d.channel_setup(1,len(self.buffer),0,frame.DaqError) #mode continuous
+                d.channel_cfg(1, 1,0,0,0,0,frame.DaqError) #analog output
+            else:
+                d.stream_create(4,self.interval,frame.DaqError)
+                d.channel_setup(4,len(self.buffer),0,frame.DaqError) #mode continuous
+                d.channel_cfg(4, 1,0,0,0,0,frame.DaqError) #analog output
+            #cut signal buffer into x length buffers
+            xLength=20
+            nBuffers = len(self.buffer)/xLength
+            for i in range(nBuffers):
+                self.init=i*xLength
+                self.end=self.init+xLength
+                self.interBuffer=self.buffer[self.init:self.end]
+                d.signal_load(self.interBuffer,self.init,frame.DaqError)
+            self.init=nBuffers*xLength
+            self.interBuffer=self.buffer[self.init:]
+            if len(self.interBuffer)>0:
+                d.signal_load(self.interBuffer,self.init,frame.DaqError)
                    
         self.buttonPlay.Enable(False)
         self.buttonStop.Enable(True)
         comunicationThread.restart()
         
     def StopEvent(self,event):
-        self.buttonPlay.Enable(True)
         self.buttonStop.Enable(False)
         
         comunicationThread.stop()
         
+    def signalCreate(self):
+        if self.signalStreamOut==0:
+            #sine
+            if self.periodStreamOut<140:
+                self.interval = 1
+            else:
+                self.interval = int(self.periodStreamOut/140)
+                self.interval +=1
+            self.t = np.arange(0, self.periodStreamOut,self.interval)
+            self.buffer= np.sin(2*np.pi/self.periodStreamOut*self.t)*self.amplitudeStreamOut
+            for i in range(len(self.buffer)):
+                self.buffer[i]=self.buffer[i]+self.offsetStreamOut
+                
+
+            
+        if self.signalStreamOut==1:
+            #square
+            self.buffer = []
+            self.interval= fractions.gcd(self.periodStreamOut, self.tOnStreamOut)
+            self.pointsOn =int(self.tOnStreamOut / self.interval)
+            self.points = int(self.periodStreamOut / self.interval)
+            for i in range(self.pointsOn):
+                self.buffer.append(self.amplitudeStreamOut+self.offsetStreamOut)
+            for i in range(self.points-self.pointsOn):
+                self.buffer.append(self.offsetStreamOut)
+        if self.signalStreamOut==2:
+            #sawtooth
+            if self.periodStreamOut<140:
+                self.interval=1
+                self.points=int(self.periodStreamOut)
+                self.increment = int(self.amplitudeStreamOut/self.periodStreamOut)
+            else:
+                self.interval = int(self.periodStreamOut/140)
+                self.interval +=1
+                self.points = int(self.periodStreamOut/self.interval)
+                self.increment = int(self.amplitudeStreamOut/self.points)
+                
+            self.init=int(self.offsetStreamOut)
+            self.buffer=[]
+            for i in range(self.points):
+                self.value=self.init
+                self.value+=(self.increment*i)
+                self.buffer.append(self.value)
+        if self.signalStreamOut==3:
+            #triangle
+            if self.periodStreamOut<140:
+                self.interval=1
+                self.points=int(self.tRiseStreamOut)
+                self.increment = int(self.amplitudeStreamOut/self.tRiseStreamOut)
+            else:
+                self.relation = int(self.periodStreamOut/self.tRiseStreamOut)
+                self.points=int(140/self.relation)  #ideal n points
+                self.interval = int(self.tRiseStreamOut/self.points)
+                self.interval +=1
+                self.points = int(self.tRiseStreamOut/self.interval)
+                self.increment = int(self.amplitudeStreamOut/self.points)
+            self.init=int(self.offsetStreamOut)
+            self.buffer=[]
+            for i in range(self.points):
+                self.value=self.init
+                self.value+=(self.increment*i)
+                self.buffer.append(self.value)
+            if self.periodStreamOut<140:
+                self.points=int(self.periodStreamOut-self.tRiseStreamOut)
+                self.increment = int(self.amplitudeStreamOut/(self.periodStreamOut-self.tRiseStreamOut))
+            else:
+                self.time = int(self.periodStreamOut-self.tRiseStreamOut)
+                self.points=140-self.points #ideal n points
+                self.interval = int(self.time/self.points)
+                self.interval +=1
+                self.points = int(self.time/self.interval)
+                self.increment = int(self.amplitudeStreamOut/self.points) 
+            self.init=int(self.offsetStreamOut+self.amplitudeStreamOut)
+            for i in range(self.points):
+                self.value=self.init
+                self.value-=(self.increment*i)
+                self.buffer.append(self.value)
+        if len(self.buffer)>=140:
+            self.buffer=self.buffer[:140]
 class MainFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, title="EasyDAQ")
+        wx.Frame.__init__(self, None, title="EasyDAQ",style=wx.DEFAULT_FRAME_STYLE &~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
+        
+        icon =wx.Icon("./icon64.png",wx.BITMAP_TYPE_ICO)
+        self.SetIcon(icon)
+        
+        self.statusBar = self.CreateStatusBar()
+        self.statusBar.SetStatusText(d.id_config(self.DaqError))
         
         self.channelState=[0,0,0,0]
         
@@ -466,6 +824,8 @@ class MainFrame(wx.Frame):
         
         self.p.canvas.Draw(drawLinePlot([],[],[],[]))
         
+        d.enableCRC(1, self.DaqError)
+    
         
         self.gains=[]
         self.offset=[]
@@ -506,7 +866,7 @@ class InitThread (threading.Thread):
     def run(self):  
         for i in range(10):
             self.dial.gauge.SetValue(pos=i*10)
-            time.sleep(0.7)
+            time.sleep(0.1)
         self.dial.Close()
 
 
@@ -576,6 +936,4 @@ if __name__ == "__main__":
     frame=MainFrame()
     frame.Centre()
     frame.Show()
-    print "frame" in locals()
-    print "frame" in globals()
     app.MainLoop()
