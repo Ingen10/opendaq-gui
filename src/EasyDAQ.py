@@ -161,7 +161,9 @@ class ComThread (threading.Thread):
                     else:
                         self.data[self.ch[0]][len(self.data[self.ch[0]])-1].append(self.time)
                     self.data[self.ch[0]][len(self.data[self.ch[0]])-1].append(float(data_int))
+                t=time.time()
                 frame.p.canvas.Draw(drawLinePlot(self.data[0],self.data[1],self.data[2],self.data[3]))
+                print "TIME:",time.time()-t
             if self.stopping:
                 self.data_packet=[]
                 self.ch = []
@@ -178,7 +180,9 @@ class ComThread (threading.Thread):
                     self.data[self.ch[i]].append([])
                     self.data[self.ch[i]][len(self.data[self.ch[i]])-1].append(self.time)
                     self.data[self.ch[i]][len(self.data[self.ch[i]])-1].append(float(data_int))
+                t=time.time()
                 frame.p.canvas.Draw(drawLinePlot(self.data[0],self.data[1],self.data[2],self.data[3]))
+                print "TIME:",time.time()-t
                 d.set_led(1,frame.DaqError)
                 for i in range(4):
                     if frame.p.enableCheck[i].GetValue():
@@ -534,6 +538,7 @@ class InterfazPanel(wx.Panel):
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
         datasSizer  =wx.BoxSizer(wx.VERTICAL)
         graphSizer = wx.BoxSizer(wx.VERTICAL)
+        hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
         
         for i in range(4):
             box = wx.StaticBox(self, -1, 'Experiment %d'%(i+1), size=(240, 140))
@@ -578,12 +583,30 @@ class InterfazPanel(wx.Panel):
         
         self.datagraphSizer[4].Add(dataSizer[4],0,wx.ALL)
         datasSizer.Add(self.datagraphSizer[4],0,wx.ALL,border=10)
+        
+        #export
+        box = wx.StaticBox(self, -1, 'Export', size=(240, 140))
+        self.exportLbl = box
+        self.exportSizer=wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)   
+        
+        
+        self.png = wx.Button(self,label="As PNG file...")
+        self.Bind(wx.EVT_BUTTON,self.saveAsPNGEvent,self.png)
+        self.csv= wx.Button(self,label="As CSV file...")
+        self.Bind(wx.EVT_BUTTON,self.saveAsCSVEvent,self.csv)
+        
+        hSizer2.Add(self.png,0,wx.ALL,border=10)
+        hSizer2.Add(self.csv,0,wx.ALL,border=10)
+        
+        self.exportSizer.Add(hSizer2,0,wx.ALL)
            
         self.buttonPlay = wx.Button(self, label="Play")
         self.Bind(wx.EVT_BUTTON, self.PlayEvent,self.buttonPlay)
         self.buttonStop = wx.Button(self, label="Stop")
         self.Bind(wx.EVT_BUTTON, self.StopEvent,self.buttonStop)
         self.buttonStop.Enable(False)
+        
+        datasSizer.Add(self.exportSizer,0,wx.ALL,border=10)
         
         graphSizer.Add(datasSizer,0,wx.ALL)
         graphSizer.Add(self.buttonPlay,0,wx.CENTRE,border=5)
@@ -600,6 +623,32 @@ class InterfazPanel(wx.Panel):
         self.gains=[]
         self.offset=[]
         d.get_calib(self.gains,self.offset,parent.DaqError)
+        
+    def saveAsPNGEvent(self,event):
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.png",wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            print self.filename
+            print self.dirname
+            self.canvas.SaveFile(self.dirname+"\\"+self.filename)
+        dlg.Destroy()          
+    def saveAsCSVEvent(self,event):
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.odq",wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            print self.filename
+            print self.dirname 
+            for j in range(4):
+                if self.enableCheck[j].IsChecked():
+                    with open(self.dirname+"\\"+str(j)+self.filename, 'wb') as csvfile:
+                        spamwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+                        for i in range(len(comunicationThread.data[j])):
+                            spamwriter.writerow([comunicationThread.data[j][i][0] ,comunicationThread.data[j][i][1]])
+        dlg.Destroy()   
         
     def configureStream(self,event):
         
@@ -801,7 +850,7 @@ class MainFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, title="EasyDAQ",style=wx.DEFAULT_FRAME_STYLE &~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         
-        icon =wx.Icon("./icon64.png",wx.BITMAP_TYPE_ICO)
+        icon =wx.Icon("./icon64.ico",wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         
         self.statusBar = self.CreateStatusBar()

@@ -12,7 +12,7 @@ import threading
 import time
 from wx.lib.agw.floatspin import FloatSpin
 from wx.lib.plot import PlotCanvas, PlotGraphics, PolyLine, PolyMarker
-
+import csv
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -159,9 +159,10 @@ class TimerThread (threading.Thread):
                 cnt = d.get_encoder(frame.DaqError)
                 frame.page4.currentPosition.Clear()
                 frame.page4.currentPosition.AppendText(str(cnt))
-                cnt*=100
-                cnt = cnt / frame.page4.encoderResolution
-                frame.page4.gauge.SetValue(pos=cnt)
+                if frame.page4.encoderResolution !=0:
+                    cnt*=100
+                    cnt = cnt / frame.page4.encoderResolution
+                    frame.page4.gauge.SetValue(pos=cnt)
                                 
 class PageOne(wx.Panel):
     def __init__(self, parent):
@@ -170,6 +171,7 @@ class PageOne(wx.Panel):
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
         grid = wx.GridBagSizer(hgap=5, vgap=5)
         grid2 = wx.GridBagSizer(hgap=5, vgap=5)
+        hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
         hSizer = wx.BoxSizer(wx.VERTICAL)
 
         box = wx.StaticBox(self, -1, 'Input', size=(240, 140))
@@ -252,6 +254,21 @@ class PageOne(wx.Panel):
         
         self.outputSizer.Add(grid2,0,wx.ALL)
         
+        box = wx.StaticBox(self, -1, 'Export', size=(240, 140))
+        self.exportLbl = box
+        self.exportSizer=wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)   
+        
+        
+        self.png = wx.Button(self,label="As PNG file...")
+        self.Bind(wx.EVT_BUTTON,self.saveAsPNGEvent,self.png)
+        self.csv= wx.Button(self,label="As CSV file...")
+        self.Bind(wx.EVT_BUTTON,self.saveAsCSVEvent,self.csv)
+        
+        hSizer2.Add(self.png,0,wx.ALL)
+        hSizer2.Add(self.csv,0,wx.ALL)
+        
+        self.exportSizer.Add(hSizer2,0,wx.ALL)
+        
         self.canvas = PlotCanvas(self)
         self.canvas.SetInitialSize(size=(600,600))
         self.canvas.SetEnableZoom(True)
@@ -259,10 +276,34 @@ class PageOne(wx.Panel):
         
         hSizer.Add(self.inputSizer,0,wx.CENTRE)
         hSizer.Add(self.outputSizer,0,wx.EXPAND)
+        hSizer.Add(self.exportSizer,0,wx.EXPAND)
         mainSizer.Add(hSizer, 0 , wx.CENTRE,border=10)
         mainSizer.Add(self.canvas,0,wx.CENTRE,border=10)
         self.SetSizerAndFit(mainSizer)
         
+    def saveAsPNGEvent(self,event):
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.png",wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            print self.filename
+            print self.dirname
+            self.canvas.SaveFile(self.dirname+"\\"+self.filename)
+        dlg.Destroy()          
+    def saveAsCSVEvent(self,event):
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.odq",wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            print self.filename
+            print self.dirname 
+            with open(self.dirname+"\\"+self.filename, 'wb') as csvfile:
+                spamwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+                for i in range(len(comunicationThread.data)):
+                    spamwriter.writerow([comunicationThread.data[i][0] ,comunicationThread.data[i][1]])
+        dlg.Destroy()          
     def ZoomUp(self,event):
         print "Evento capturado"
     def PlayEvent(self,event):
@@ -363,7 +404,7 @@ class PageThree(wx.Panel):
             radioList.append("Output")
             self.label.append(wx.StaticText(self, label="D%d" % (i+1)))
             self.rb.append(wx.RadioBox(self, label="Select input or output?",  choices=radioList, majorDimension=2,style=wx.RA_SPECIFY_COLS))
-            self.buttons.append(wx.BitmapButton(self, id=indice+i,bitmap=self.imageRed,pos=(10, 20), size = (self.imageRed.GetWidth()+5, self.imageRed.GetHeight()+5)))
+            self.buttons.append(wx.BitmapButton(self, id=indice+i,bitmap=self.imageGreen,pos=(10, 20), size = (self.imageGreen.GetWidth()+5, self.imageGreen.GetHeight()+5)))
             self.output.append(False)
             self.value.append(False)
             self.Bind(wx.EVT_BUTTON,self.OutputChange,self.buttons[i])
@@ -408,9 +449,9 @@ class PageThree(wx.Panel):
                     self.buttons[i].SetBitmapLabel(self.imageRed)
                 else:
                     self.buttons[i].SetBitmapLabel(self.imageSwOff)
-        frame.page4.stopCounterEvent()
-        frame.page4.stopPwmEvent()
-        frame.page4.stopCaptureEvent()
+        frame.page4.stopCounterEvent(self)
+        frame.page4.stopPwmEvent(self)
+        frame.page4.stopCaptureEvent(self)
         timerThread.stop()
     def OutputChange(self,event):
         button = event.GetEventObject()
@@ -451,7 +492,7 @@ class PageFour(wx.Panel):
         pwmSizer = wx.BoxSizer(wx.VERTICAL) 
         captureSizer = wx.BoxSizer(wx.VERTICAL) 
         counterSizer = wx.BoxSizer(wx.VERTICAL) 
-        encoderSizer = wx.BoxSizer(wx.VERTICAL)
+        encoderSizer = wx.GridBagSizer(hgap=20, vgap=20)
          
         self.periodLabel = wx.StaticText(self, label="Period (us):")
         self.dutyLabel = wx.StaticText(self, label="Duty (%):")
@@ -511,12 +552,19 @@ class PageFour(wx.Panel):
         self.gauge = wx.Gauge(self,range=100,size=(100,15))
         self.currentPosition = wx.TextCtrl(self,style=wx.TE_READONLY | wx.TE_CENTRE)
         self.encoderValue = wx.TextCtrl(self,style=wx.TE_CENTRE)
+        radioList=[]
+        radioList.append("Circular")
+        radioList.append("Linear")
+        self.modeEncoder = wx.RadioBox(self, label="Select mode:",  choices=radioList, majorDimension=3,style=wx.RA_SPECIFY_COLS)
+        self.resolutionLabel = wx.StaticText(self, label="Resolution:")
         
-        encoderSizer.Add(self.gauge,0,wx.ALL,border=5)
-        encoderSizer.Add(self.currentPosition,0,wx.ALL,border=5) 
-        encoderSizer.Add(self.encoderValue,0,wx.ALL,border=5)
-        encoderSizer.Add(self.setEncoder,0,wx.ALL,border=5)
-        encoderSizer.Add(self.stopEncoder,0,wx.ALL,border=5)
+        encoderSizer.Add(self.gauge,pos=(0,1))
+        encoderSizer.Add(self.currentPosition,pos=(0,0)) 
+        encoderSizer.Add(self.modeEncoder,pos=(1,0),span=(1,2)) 
+        encoderSizer.Add(self.resolutionLabel,pos=(2,0))
+        encoderSizer.Add(self.encoderValue,pos=(2,1))
+        encoderSizer.Add(self.setEncoder,pos=(3,0),span=(1,2))
+        encoderSizer.Add(self.stopEncoder,pos=(4,0),span=(1,2))
         
         self.pwmgraphSizer.Add(pwmSizer,0,wx.CENTRE)
         self.capturegraphSizer.Add(captureSizer,0,wx.CENTRE)
@@ -618,20 +666,23 @@ class PageFour(wx.Panel):
         self.captureValue.Clear()
         
     def startEncoderEvent(self,event):
-        self.encoderValue.Enable(False)
-        string= self.encoderValue.GetLineText(0)
-        if string.isdigit():    
-            self.encoderResolution = int(self.encoderValue.GetLineText(0))
-            if self.encoderResolution<1 or self.encoderResolution>65535:
-                dlg = wx.MessageDialog(self,"Resolution can not be neither greater than 65535 nor lower than 1","Error!", wx.OK|wx.ICON_WARNING)
+        if self.modeEncoder.GetSelection()==0:
+            string= self.encoderValue.GetLineText(0)
+            if string.isdigit():    
+                self.encoderResolution = int(self.encoderValue.GetLineText(0))
+                if self.encoderResolution<0 or self.encoderResolution>65535:
+                    dlg = wx.MessageDialog(self,"Resolution can not be neither greater than 65535 nor lower than 1","Error!", wx.OK|wx.ICON_WARNING)
+                    dlg.ShowModal()
+                    dlg.Destroy()   
+                    return
+            else:
+                dlg = wx.MessageDialog(self,"Not a valid resolution","Error!", wx.OK|wx.ICON_WARNING)
                 dlg.ShowModal()
                 dlg.Destroy()   
                 return
         else:
-            dlg = wx.MessageDialog(self,"Not a valid resolution","Error!", wx.OK|wx.ICON_WARNING)
-            dlg.ShowModal()
-            dlg.Destroy()   
-            return
+            self.encoderResolution=0
+        self.encoderValue.Enable(False)
         d.encoder_init(self.encoderResolution,frame.DaqError)
         self.setCounter.Enable(True)
         self.setCapture.Enable(True)
@@ -693,7 +744,7 @@ class MainFrame(wx.Frame):
         self.page1.canvas.Draw(drawLinePlot(self.data))
 
         sz=self.page1.GetSize()
-        sz[1]+=50
+        sz[1]+=80
         sz[0]+=10
         self.SetSize(sz)
         
