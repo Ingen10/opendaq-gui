@@ -5,6 +5,7 @@ from DAQ import *
 import threading
 import time
 import numpy
+from wx.lib.agw.floatspin import FloatSpin
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -41,7 +42,6 @@ def scan(num_ports = 20, verbose=True):
             #-- If no errors, add the number and name to the list
             dispositivos_serie.append( (i, s.portstr))
             
-            #-- Close port
             s.close()
             
         #-- Ignore possible errors      
@@ -53,37 +53,39 @@ def scan(num_ports = 20, verbose=True):
 
 
 class MainFrame(wx.Frame):
-    def __init__(self):
+    def __init__(self,commPort):
         wx.Frame.__init__(self, None, title="OpenDaq")
         self.Bind(wx.EVT_CLOSE,self.OnClose)
 
+        self.daq = DAQ(commPort)
+        self.daq.enable_crc(1)
+    
+        self.gains=[]
+        self.offset=[]
+        self.gains,self.offset = self.daq.get_cal()
         
         # Here we create a panel
-        self.p = InterfazPanel(self)
+        self.p = InterfazPanel(self,self.gains,self.offset)
         
         sz=self.p.GetSize()
         sz[1]+=50
         sz[0]+=10
         self.SetSize(sz)
+        
     def OnClose(self,event):
         dlg = wx.MessageDialog(self,"Do you really want to close this application?","Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
             self.Destroy()
-            d.close()
+            frame.daq.close()
     def ShowErrorParameters(self):
             dlg = wx.MessageDialog(self,"Verify parameters","Error!", wx.OK|wx.ICON_WARNING)
             result = dlg.ShowModal()
             dlg.Destroy()       
-    def DaqError(self,number=0,foo=0):
-        errorStr = "DAQ invokes an error. Line number:"+str(number)+" in "+foo+" function." 
-        dlg = wx.MessageDialog(self,errorStr,"Error!", wx.OK|wx.ICON_WARNING)
-        result = dlg.ShowModal()
-        dlg.Destroy()   
 
 class InterfazPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent,gains,offset):
         wx.Panel.__init__(self, parent)
         self.status=0
         self.values=0
@@ -93,9 +95,8 @@ class InterfazPanel(wx.Panel):
         grid = wx.GridBagSizer(hgap=4, vgap=9)
         
         
-        self.gains=[]
-        self.offset=[]
-        d.get_calib(self.gains,self.offset,parent.DaqError)
+        self.gains=gains
+        self.offset=offset
         
         gLabel = wx.StaticText(self, label="Slope")
         offsetLabel = wx.StaticText(self, label="Intercept")
@@ -117,7 +118,7 @@ class InterfazPanel(wx.Panel):
         self.adcValues=[]
         self.buttons=[]
         for i in range(5):
-            self.valueEdit.append(wx.TextCtrl(self,style=wx.TE_CENTRE))
+            self.valueEdit.append(FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3))
             self.adcValues.append(wx.TextCtrl(self,value="--",style=wx.TE_READONLY))
             self.buttons.append(wx.Button(self,id=100+i,label="Update"))
             self.Bind(wx.EVT_BUTTON,self.updateEvent,self.buttons[i])
@@ -150,10 +151,11 @@ class InterfazPanel(wx.Panel):
         self.lblrange = wx.StaticText(self, label="Range")
         grid.Add(self.lblrange,pos=(1,0))
         self.editrange = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.editrange.SetSelection(1)
         grid.Add(self.editrange,pos=(1,1)) 
         
         self.setDAC = wx.Button(self,label="Set DAC")
-        self.editDAC = wx.TextCtrl(self,style=wx.TE_CENTRE)
+        self.editDAC = FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3)
         self.Bind(wx.EVT_BUTTON,self.updateDAC,self.setDAC)
         grid.Add(self.editDAC,pos=(2,0))
         grid.Add(self.setDAC,pos=(2,1))
@@ -165,8 +167,8 @@ class InterfazPanel(wx.Panel):
         grid.Add(self.npointsLabel,pos=(0,0))
         grid.Add(self.editnpoints,pos=(0,1))
        
-        mainSizer.Add(grid,0,wx.ALL)
-        mainSizer.Add(valuesSizer,0,wx.ALL)
+        mainSizer.Add(grid,0,wx.ALL,border=10)
+        mainSizer.Add(valuesSizer,0,wx.ALL,border=10)
         self.SetSizerAndFit(mainSizer)
         
     def nPointsChange(self,event):
@@ -185,22 +187,12 @@ class InterfazPanel(wx.Panel):
         self.range = self.editrange.GetCurrentSelection()
         button = event.GetEventObject()
         indice=button.GetId()-100
-        
-        string= self.valueEdit[indice].GetLineText(0)
-        if string[0] == '-':
-            string = string[1:]
-        if string.isdigit():    
-            dacValue = self.valueEdit[indice].GetLineText(0)
-            print dacValue
-            d.adc_cfg(8,0,self.range,20,frame.DaqError)
-            time.sleep(1)
-            data_int = d.read_adc(frame.DaqError)
-            self.adcValues[indice].Clear()
-            self.adcValues[indice].AppendText(str(data_int))
-        else:
-            dlg = wx.MessageDialog(self,"Not a valid value","Error!", wx.OK|wx.ICON_WARNING)
-            result = dlg.ShowModal()
-            dlg.Destroy()   
+            
+        frame.daq.conf_adc(8,0,self.range,20)
+        time.sleep(1)
+        data_int = frame.daq.read_adc()
+        self.adcValues[indice].Clear()
+        self.adcValues[indice].AppendText(str(data_int))
             
     def getValuesEvent(self,event):
         npoints = self.editnpoints.GetValue()
@@ -209,8 +201,8 @@ class InterfazPanel(wx.Panel):
         self.x = []
         self.y = []
         for i in range(int(npoints)):
-            dacValue = self.valueEdit[i].GetLineText(0)
-            dacValueInt= int(dacValue)
+            dacValue = self.valueEdit[i].GetValue()
+            dacValueInt= int(dacValue*1000)
             adcValue = self.adcValues[i].GetLineText(0)
             adcValueInt = int(adcValue)
             self.y.append(dacValueInt)
@@ -233,18 +225,8 @@ class InterfazPanel(wx.Panel):
 
     def updateDAC(self,event):
         
-        string= self.editDAC.GetLineText(0)
-        if string[0] == '-':
-            string = string[1:]
-        if string.isdigit():    
-            dacValue = self.editDAC.GetLineText(0)
-            print dacValue
-            dacValueInt= int(dacValue)
-            d.set_dac(dacValueInt,frame.DaqError);
-        else:
-            dlg = wx.MessageDialog(self,"Not a valid value","Error!", wx.OK|wx.ICON_WARNING)
-            result = dlg.ShowModal()
-            dlg.Destroy()  
+        dacValue = self.editDAC.GetValue()
+        frame.daq.set_dac(dacValue)
 
     def saveCalibration(self):
         self.slope= []
@@ -256,7 +238,7 @@ class InterfazPanel(wx.Panel):
             self.intercept.append(int(value))
         print self.slope
         print self.intercept
-        d.set_calib(self.slope,self.intercept,frame.DaqError)
+        frame.daq.set_cal(self.slope,self.intercept)
         
 class InitThread (threading.Thread):
     def __init__(self,dial):
@@ -271,8 +253,7 @@ class InitThread (threading.Thread):
 
 class InitDlg(wx.Dialog): 
     def __init__(self): 
-        wx.Dialog.__init__(self, None, title="OpenDaq",style=(wx.STAY_ON_TOP | wx.CAPTION)) 
-        self.Bind(wx.EVT_CLOSE,self.OnClose)
+        wx.Dialog.__init__(self, None, title="EasyDAQ",style=(wx.STAY_ON_TOP | wx.CAPTION)) 
         self.hsizer = wx.BoxSizer(wx.HORIZONTAL) 
         self.vsizer = wx.BoxSizer(wx.VERTICAL) 
         
@@ -282,13 +263,14 @@ class InitDlg(wx.Dialog):
         
         puertos_disponibles=scan(num_ports=255,verbose=False)
         self.sampleList = []
-        #-- Walking the list showing the ports that have been opened
+        #-- Recorrer la lista mostrando los que se han podido abrir
         if len(puertos_disponibles)!=0:
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
         self.lblhear = wx.StaticText(self, label="Select Serial Port")
         self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
-        
+        self.edithear.SetSelection(0)
+  
         self.hsizer.Add(self.lblhear,wx.EXPAND)
         self.hsizer.Add(self.edithear,wx.EXPAND)
 
@@ -303,34 +285,44 @@ class InitDlg(wx.Dialog):
         self.SetSizer(self.vsizer) 
         self.SetAutoLayout(1) 
         self.vsizer.Fit(self)
-        
-    def OnClose(self,event):
-        dlg = wx.MessageDialog(self,"OpenDaq started","Continue", wx.OK | wx.ICON_QUESTION)
-        result = dlg.ShowModal()
-        dlg.Destroy()
-        self.Destroy()
+    
     def okEvent(self,event):
-        self.buttonOk.Show(False)
-        self.edithear.Show(False)
-        self.gauge.Show()
-        
-        self.timerThread = InitThread(self)
-        self.timerThread.start()
         portN = self.edithear.GetCurrentSelection()
-        d.setPort(self.sampleList[portN])
-        d.open()
+        if portN>=0:
+            self.buttonOk.Show(False)
+            self.edithear.Show(False)
+            self.gauge.Show()
+            daq = DAQ(self.sampleList[portN])
+            try:
+                daq.get_info()
+                dlg = wx.MessageDialog(self,"DAQControl started","Continue", wx.OK | wx.ICON_QUESTION)
+                dlg.ShowModal()
+                dlg.Destroy()
+                self.port = self.sampleList[portN]
+                self.EndModal(1)
+            except:
+                dlg = wx.MessageDialog(self,"DAQControl not found","Exit", wx.OK | wx.ICON_QUESTION)
+                dlg.ShowModal()
+                dlg.Destroy()
+                self.port=0
+                self.EndModal(0)
+        else:
+            dlg = wx.MessageDialog(self,"Not a valid port","Retry", wx.OK | wx.ICON_QUESTION)
+            dlg.ShowModal()
+            dlg.Destroy()
+            
 class MyApp(wx.App):
     def OnInit(self):
         dial = InitDlg()
-        dial.ShowModal()
+        ret=dial.ShowModal()
+        dial.Destroy()
+        self.commPort = dial.port
+        self.connected=ret
         return True
 
-
-
 if __name__ == "__main__":
-    d = DAQ("COM1")
     app = MyApp(False)
-    frame=MainFrame()
+    frame=MainFrame(app.commPort)
     frame.Centre()
     frame.Show()
     app.MainLoop()

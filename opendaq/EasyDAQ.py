@@ -7,7 +7,7 @@ Created on 01/03/2012
 import os
 import sys
 import wx
-from daq import *
+from DAQ import *
 import threading
 import fractions
 import time
@@ -1059,13 +1059,13 @@ class InitDlg(wx.Dialog):
             daq = DAQ(self.sampleList[portN])
             try:
                 daq.get_info()
-                dlg = wx.MessageDialog(self,"DAQControl started","Continue", wx.OK | wx.ICON_QUESTION)
+                dlg = wx.MessageDialog(self,"EasyDAQ started","Continue", wx.OK | wx.ICON_QUESTION)
                 dlg.ShowModal()
                 dlg.Destroy()
                 self.port = self.sampleList[portN]
                 self.EndModal(1)
             except:
-                dlg = wx.MessageDialog(self,"DAQControl not found","Exit", wx.OK | wx.ICON_QUESTION)
+                dlg = wx.MessageDialog(self,"EasyDAQ not found","Exit", wx.OK | wx.ICON_QUESTION)
                 dlg.ShowModal()
                 dlg.Destroy()
                 self.port=0
@@ -1083,8 +1083,6 @@ class MyApp(wx.App):
         self.commPort = dial.port
         self.connected=ret
         return True
-
-
 
 if __name__ == "__main__":
     comunicationThread=ComThread()

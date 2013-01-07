@@ -7,7 +7,7 @@ Created on 01/03/2012
 import os
 import sys
 import wx
-from daq import *
+from DAQ import *
 import threading
 import time
 from wx.lib.agw.floatspin import FloatSpin

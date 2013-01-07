@@ -57,7 +57,7 @@ class DAQ:
     def __init__(self, port):
         self.port = port
         self.open()
-
+        
     def open(self):
         self.ser = serial.Serial(self.port, BAUDS, timeout=.1)
         self.ser.setRTS(0)
@@ -91,6 +91,7 @@ class DAQ:
         data = struct.unpack(fmt, check_crc(ret))
 
         if data[1] != ret_len-4:
+            print data[1],ret_len-4
             raise LengthError
 
         # strip 'command' and 'length' values from returned data
@@ -111,7 +112,7 @@ class DAQ:
         return self.send_command(cmd, 'B')[0]
 
     def set_led(self, color):
-        if not 0 <= color <= 2:
+        if not 0 <= color <= 3:
             raise ValueError('Invalid color number')
         cmd = struct.pack('BBB', 18, 1, color)
         return self.send_command(cmd, 'B')[0]
@@ -156,7 +157,7 @@ class DAQ:
         return self.send_command(cmd, 'H')[0]
 
     def stop_capture(self):
-        self.send_command('\x15\x00', '')
+        self.send_command('\x0F\x00', '')
 
     def get_capture(self, mode):
         cmd = struct.pack('>BBB', 16, 1, mode)
@@ -242,7 +243,7 @@ class DAQ:
         return self.send_command(cmd, 'BB')
 
     def load_signal(self, data, offset):
-        cmd = struct.pack('>bBh%dh' % len(data), 23, len(data), offset, *data)
+        cmd = struct.pack('>bBh%dh' % len(data), 23, len(data)*2+2, offset, *data)
         return self.send_command(cmd, 'Bh')
 
     def start(self):
@@ -303,9 +304,9 @@ class DAQ:
     #Returns 0 if there aren't any incoming data
     #Returns 1 if data stream was precessed
     #Returns 2 if no data stream received. Useful for debuging
-    def get_stream(self, data, channel):
-        header = []
-
+    def get_stream(self,data,channel,callback=0):
+        self.header = []
+        self.data = []
         ret = self.ser.read(1)
         if len(ret)==0:
             return 0
@@ -315,63 +316,63 @@ class DAQ:
             return 2
         #get header
 
-        while len(header)<8:
+        while len(self.header)<8:
             ret = self.ser.read(1)
             char = struct.unpack('>B',ret)
             if char[0] == 0x7D:
                 ret = self.ser.read(1)
                 char = struct.unpack('>B',ret)
                 tmp = char[0] | 0x20
-                header.append(tmp)
+                self.header.append(tmp)
             else:
-                header.append(char[0])
+                self.header.append(char[0])
                 
-            if len(header)==3 and header[2] == 80:
+            if len(self.header)==3 and self.header[2] == 80:
                 #ODaq send stop
                 ret = self.ser.read(2)
                 char,ch = struct.unpack('>BB',ret)
                 channel.append(ch-1)
                 return 3
-
-        length=header[3]
-        dataLength=length-4
-        while len(data)<dataLength:
+        length=self.header[3]
+        self.dataLength=length-4
+        while len(self.data)<self.dataLength:
             ret = self.ser.read(1)
             char = struct.unpack('>B',ret)
             if char[0] == 0x7D:
                 ret = self.ser.read(1)
                 char = struct.unpack('>B',ret)
                 tmp = char[0] | 0x20
-                data.append(tmp)
+                self.data.append(tmp)
             else:
-                data.append(char[0])
+                self.data.append(char[0])
         
-        for i in range(0, dataLength, 2):
-            value = (data[i]<<8) | data[i+1]
+        for i in range(0, self.dataLength, 2):
+            value = (self.data[i]<<8) | self.data[i+1]
             if value >=32768:
                 value=value-65536
             data.append(int(value))
-
-        check_stream_crc(header,data)
-        channel.append(header[4]-1)
-
+        check_stream_crc(self.header,self.data)
+        channel.append(self.header[4]-1)
         return 1
 
 
 if __name__ == '__main__':
     import time, sys
 
-    daq = DAQ('/dev/ttyUSB0')
+    daq = DAQ('COM4')
 
-    daq.create_stream(1, 100)
-    daq.conf_channel(1, 'ANALOG_INPUT', 1)
-    daq.setup_channel(1, 200)
+    daq.set_dac(3)
+
+    daq.create_stream(1, 500)
+    daq.conf_channel(1, 'ANALOG_INPUT', 8)
+    daq.setup_channel(1, 20)
     daq.start()
 
     data = []
     channel = []
-    for i in xrange(20):
+    for i in xrange(40):
         daq.get_stream(data, channel)
+        print data
 
     print data
     daq.flush()
