@@ -7,7 +7,7 @@ Created on 01/03/2012
 import os
 import sys
 import wx
-from DAQ import *
+from daq import *
 import threading
 import time
 from wx.lib.agw.floatspin import FloatSpin
@@ -107,9 +107,10 @@ class ComThread (threading.Thread):
                 time.sleep(self.delay)
                 data_int = frame.daq.read_adc()
                 data_int*=-frame.gains[frame.page1.editrange.GetCurrentSelection()]
-                data_int/=100000
-                data_int+=frame.offset[frame.page1.editrange.GetCurrentSelection()]
-                data_V= float(data_int)
+                data=float(data_int)
+                data/=100000
+                data+=frame.offset[frame.page1.editrange.GetCurrentSelection()]
+                data_V= float(data)
                 data_V = data_V/1000
                 frame.page1.inputValue.Clear()
                 frame.page1.inputValue.AppendText(str(data_V))
@@ -403,8 +404,14 @@ class PageOne(wx.Panel):
         
         comunicationThread.stop()
     def sliderChange(self,event):
-        self.value = self.editvalue.GetValue()
-        frame.daq.set_dac(self.value);
+        dacValue = self.editvalue.GetValue()*1000
+        dacValue*=frame.dacGain
+        data= float(dacValue)
+        data/=1000
+        data+=frame.dacOffset
+        data+=4096
+        data*=2
+        frame.daq.set_analog(data)
 
 class PageThree(wx.Panel):
     def __init__(self, parent):
@@ -799,6 +806,8 @@ class MainFrame(wx.Frame):
         self.gains=[]
         self.offset=[]
         self.gains,self.offset = self.daq.get_cal()
+        
+        self.dacGain,self.dacOffset = self.daq.get_dac_cal()
         
         self.daq.set_dac(0);
         self.daq.set_port_dir(0)

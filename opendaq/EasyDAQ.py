@@ -7,7 +7,7 @@ Created on 01/03/2012
 import os
 import sys
 import wx
-from DAQ import *
+from daq import *
 import threading
 import fractions
 import time
@@ -23,6 +23,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 from matplotlib.widgets import Cursor
+
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -125,7 +126,7 @@ class ComThread (threading.Thread):
         self.x = [[],[],[],[]]
         self.y = [[],[],[],[]]          
         self.data_packet=[]
-        frame.daq.set_dac(0.8)
+        frame.setVoltage(0.8)
         self.streaming=1    
         self.count=0
         frame.daq.start()
@@ -162,7 +163,7 @@ class ComThread (threading.Thread):
                     self.debug=''.join(map(chr,self.data_packet))
                     self.data_packet=[]
                     while 1:
-                        ret = d.get_stream(self.data_packet,self.ch)
+                        ret = frame.daq.get_stream(self.data_packet,self.ch)
                         if ret == 0:
                             print "Debug message:"+self.debug
                             break
@@ -187,8 +188,9 @@ class ComThread (threading.Thread):
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
                     data_int*=-frame.gains[frame.p.range[self.ch[0]]]
-                    data_int/=100000
-                    data_int+=frame.offset[frame.p.range[self.ch[0]]]
+                    data= float(data_int)
+                    data/=100000
+                    data+=frame.offset[frame.p.range[self.ch[0]]]
                     self.delay = float(frame.p.rate[self.ch[0]])
                     self.delay/=1000
                     self.time = self.delay*len(self.x[self.ch[0]])
@@ -196,12 +198,20 @@ class ComThread (threading.Thread):
                         self.y[self.ch[0]].append(self.difTime)
                     else:
                         self.y[self.ch[0]].append(self.time)
-                    self.x[self.ch[0]].append(float(data_int))
+                    self.x[self.ch[0]].append(float(data))
             if self.stopping:
                 self.data_packet=[]
                 self.ch = []
                 frame.daq.flush()
-                frame.daq.stop()
+                while True:
+                    try:
+                        frame.daq.stop()
+                        break
+                    except:
+                        print "Error trying to stop. Retrying"
+                        time.sleep(0.2)
+                        frame.daq.flush()
+                        pass
                 print len(self.data_packet)
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
@@ -221,11 +231,16 @@ class ComThread (threading.Thread):
                 frame.p.axes.plot(comunicationThread.y[2],comunicationThread.x[2],color='b')
                 frame.p.axes.plot(comunicationThread.y[3],comunicationThread.x[3],color='k')
                 frame.p.canvas.draw()
+                frame.daq.flush()
                 print "TIME:",time.time()-t
                 for i in range(4):
                     if frame.p.enableCheck[i].GetValue():
                         print "Destroying channel %d"%(i+1)
-                        frame.daq.destroy_channel(i+1)
+                        try:
+                            frame.daq.destroy_channel(i+1)
+                        except:
+                            frame.daq.flush()
+                            print "Error trying to destroy channel"
                 self.stopping=0
                 frame.p.buttonPlay.Enable(True)
                 
@@ -279,7 +294,7 @@ class StreamDialog(wx.Dialog):
 
         self.datagraphSizer[2].Add(dataSizer[2],0,wx.ALL)
 
-        #sTriangle
+        #Triangle
         box = wx.StaticBox(self, -1, 'Triangle', size=(240, 140))
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[3], wx.HORIZONTAL))
@@ -290,6 +305,14 @@ class StreamDialog(wx.Dialog):
    
         self.datagraphSizer[3].Add(dataSizer[3],0,wx.ALL)
         
+        #Fixed potential
+        box = wx.StaticBox(self, -1, 'Fixed potential', size=(240, 140))
+        self.dataLbl.append(box)
+        self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
+        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        
+        self.datagraphSizer[4].Add(dataSizer[4],0,wx.ALL)
+        
         hSizer.Add(self.periodoLabel,pos=(0,0))
         hSizer.Add(self.periodoEdit,pos=(0,1))
         hSizer.Add(self.offsetLabel,pos=(0,2))
@@ -297,10 +320,12 @@ class StreamDialog(wx.Dialog):
         hSizer.Add(self.amplitudeLabel,pos=(0,4))
         hSizer.Add(self.amplitudeEdit,pos=(0,5))
         
-        for i in range(4):
+        for i in range(5):
             self.enable.append(wx.CheckBox(self,label='Enable',id=200+i)) 
             if(frame.p.waveForm == i):
                 self.enable[i].SetValue(1)        
+            if(frame.p.waveForm == 4):
+                self.amplitudeEdit.Enable(False)
             dataSizer[i].Add(self.enable[i],0,wx.ALL,border=10)          
             self.Bind(wx.EVT_CHECKBOX,self.enableEvent,self.enable[i])
 
@@ -313,6 +338,7 @@ class StreamDialog(wx.Dialog):
         boxSizer.Add(self.datagraphSizer[1],pos=(0,1))
         boxSizer.Add(self.datagraphSizer[2],pos=(1,0))
         boxSizer.Add(self.datagraphSizer[3],pos=(1,1))
+        boxSizer.Add(self.datagraphSizer[4],pos=(0,2))
         
         self.burstMode = wx.CheckBox(self,label='Period (us)')
         self.Bind(wx.EVT_CHECKBOX,self.burstModeEvent,self.burstMode)
@@ -373,7 +399,7 @@ class StreamDialog(wx.Dialog):
             self.EndModal ( wx.ID_OK )
             return 0    
         self.signal=-1
-        for i in range(4):
+        for i in range(5):
             if(self.enable[i].IsChecked()):
                 self.signal=i
                 frame.p.waveForm=i
@@ -420,9 +446,13 @@ class StreamDialog(wx.Dialog):
         button = event.GetEventObject()
         indice=button.GetId()-200
         if(self.enable[indice].IsChecked()):
-            for i in range(4):
+            for i in range(5):
                 if i!=indice:
                     self.enable[i].SetValue(0)
+        if(self.enable[4].IsChecked()):
+            self.amplitudeEdit.Enable(False)
+        else:
+            self.amplitudeEdit.Enable(True)
 
 
 class ConfigDialog ( wx.Dialog ):
@@ -827,7 +857,7 @@ class InterfazPanel(wx.Panel):
                 self.channel.append([self.ch1[i],self.ch2[i],self.rate[i],self.range[i]])
                 
                 if self.rate[i]<10:
-                    self.npoint[i]=15000
+                    self.npoint[i]=30000
                     self.mode[i]=1
                 
                 if self.externFlag[i]==1:
@@ -949,8 +979,24 @@ class InterfazPanel(wx.Panel):
                 self.value=self.init
                 self.value-=(self.increment*i)
                 self.buffer.append(self.value)
+        if self.signalStreamOut==4:
+            #continuous
+            self.buffer = []
+            self.interval = self.periodStreamOut
+            self.buffer.append(self.offsetStreamOut)
+
+        #calibration
+        for i in range(len(self.buffer)):
+            dacValue = self.buffer[i]
+            dacValue*=frame.dacGain
+            data= float(dacValue)
+            data/=1000
+            data+=frame.dacOffset
+            self.buffer[i] = data
+        
         if len(self.buffer)>=140:
             self.buffer=self.buffer[:140]
+            
 class MainFrame(wx.Frame):
     def __init__(self,commPort):
         wx.Frame.__init__(self, None, title="EasyDAQ",style=wx.DEFAULT_FRAME_STYLE &~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
@@ -986,6 +1032,18 @@ class MainFrame(wx.Frame):
         self.gains=[]
         self.offset=[]
         self.gains,self.offset = self.daq.get_cal()
+        
+        self.dacGain,self.dacOffset = self.daq.get_dac_cal()
+
+    def setVoltage(self,voltage):
+        dacValue = voltage*1000
+        dacValue*=self.dacGain
+        data= float(dacValue)
+        data/=1000
+        data+=self.dacOffset
+        data+=4096
+        data*=2
+        self.daq.set_analog(data)
 
     def OnClose(self,event):
         dlg = wx.MessageDialog(self,"Do you really want to close this application?","Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)

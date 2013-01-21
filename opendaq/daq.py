@@ -123,6 +123,13 @@ class DAQ:
             raise ValueError('DAQ voltage out of range')
         cmd = struct.pack('>BBh', 13, 2, value)
         return self.send_command(cmd, 'h')[0]
+    
+    def set_analog(self, raw):
+        value = int(round(raw))
+        if not 0 < value < 16384:
+            raise ValueError('DAQ voltage out of range')
+        cmd = struct.pack('>BBh', 24, 2, value)
+        return self.send_command(cmd, 'h')[0]
         
     def set_port_dir(self, output):
         cmd = struct.pack('BBB', 9, 1, output)
@@ -195,6 +202,13 @@ class DAQ:
 
         return gains, offsets
             
+    def get_dac_cal(self):
+        gain_id,gain, offset = self.__get_calibration(5)
+        print gain_id
+        print gain
+        print offset
+        return gain,offset
+            
     def __set_calibration(self, gain_id, gain, offset):
         cmd = struct.pack('>BBBHh', 37, 5, gain_id, gain, offset)
         return self.send_command(cmd, 'BHh')
@@ -202,7 +216,9 @@ class DAQ:
     def set_cal(self, gains, offsets):
         for i in range(5):
             self.__set_calibration(i, gains[i], offsets[i])
-    
+            
+    def set_DAQ_cal(self, gain, offset):
+        self.__set_calibration(5, gain, offset)
     def conf_channel(self, number, mode, pinput, ninput=0, gain=1, nsamples=1):
         if not 1 <= number <= 4:
             raise ValueError('Invalid number')
@@ -251,7 +267,8 @@ class DAQ:
 
     def stop(self):
         self.send_command('\x50\x00', '')
-        
+        time.sleep(1)
+        self.flush()
     def flush(self):
         self.ser.flushInput()
 

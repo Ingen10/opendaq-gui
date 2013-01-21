@@ -1,7 +1,7 @@
 import os
 import sys
 import wx
-from DAQ import *
+from daq import *
 import threading
 import time
 import numpy
@@ -60,15 +60,37 @@ class MainFrame(wx.Frame):
         self.daq = DAQ(commPort)
         self.daq.enable_crc(1)
     
-        self.gains=[]
-        self.offset=[]
-        self.gains,self.offset = self.daq.get_cal()
+        self.adcgains=[]
+        self.adcoffset=[]
+        self.adcgains,self.adcoffset = self.daq.get_cal()
         
-        # Here we create a panel
-        self.p = InterfazPanel(self,self.gains,self.offset)
+        self.dacgain=0
+        self.dacoffset=0
+        self.dacgain,self.dacoffset = self.daq.get_DAC_cal()
         
-        sz=self.p.GetSize()
-        sz[1]+=50
+        # Here we create a panel and a notebook on the panel
+        self.p = wx.Panel(self)
+        self.nb = wx.Notebook(self.p)
+        
+        # create the page windows as children of the notebook
+        self.page1 = AdcPage(self.nb,self.adcgains,self.adcoffset)
+        self.page1.SetBackgroundColour('#ece9d8')
+        self.page2 = DacPage(self.nb,self.dacgain,self.dacoffset)
+        self.page2.SetBackgroundColour('#ece9d8')
+
+        
+        # add the pages to the notebook with the label to show on the tab
+        self.nb.AddPage(self.page1, "DAC")
+        self.nb.AddPage(self.page2, "ADC")
+        
+        # finally, put the notebook in a sizer for the panel to manage
+        # the layout
+        sizer = wx.BoxSizer()
+        sizer.Add(self.nb, 1, wx.EXPAND)
+        self.p.SetSizer(sizer)
+        
+        sz=self.page1.GetSize()
+        sz[1]+=80
         sz[0]+=10
         self.SetSize(sz)
         
@@ -84,9 +106,10 @@ class MainFrame(wx.Frame):
             result = dlg.ShowModal()
             dlg.Destroy()       
 
-class InterfazPanel(wx.Panel):
+class AdcPage(wx.Panel):
     def __init__(self, parent,gains,offset):
         wx.Panel.__init__(self, parent)
+
         self.status=0
         self.values=0
         
@@ -240,6 +263,162 @@ class InterfazPanel(wx.Panel):
         print self.intercept
         frame.daq.set_cal(self.slope,self.intercept)
         
+class DacPage(wx.Panel):
+    def __init__(self, parent,gains,offset):
+        wx.Panel.__init__(self, parent)
+        self.status=0
+        self.values=0
+        
+        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
+        valuesSizer = wx.GridBagSizer(hgap=8, vgap=8)
+        grid = wx.GridBagSizer(hgap=4, vgap=9)
+        
+        self.realDAC = numpy.zeros(5)
+        self.readDAC = numpy.zeros(5)
+        
+        self.gain=gains
+        self.offset=offset
+        
+        gLabel = wx.StaticText(self, label="Slope")
+        offsetLabel = wx.StaticText(self, label="Intercept")
+        valuesSizer.Add(gLabel,pos=(0,1))
+        valuesSizer.Add(offsetLabel,pos=(0,2))
+        self.gainLabel= wx.StaticText(self, label=" Gain ")
+        self.gainsEdit = wx.TextCtrl(self,value=str(self.gain),style=wx.TE_READONLY)
+        self.offsetEdit= wx.TextCtrl(self,value=str(self.offset),style=wx.TE_READONLY)
+
+        self.checkDAC = wx.Button(self,label="Check DAC")
+        self.editCheck = FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3)
+        self.Bind(wx.EVT_BUTTON,self.checkDacEvent,self.checkDAC)
+
+        valuesSizer.Add(self.gainLabel,pos=(1,0))
+        valuesSizer.Add(self.gainsEdit,pos=(1,1))
+        valuesSizer.Add(self.offsetEdit,pos=(1,2))
+        valuesSizer.Add(self.checkDAC,pos=(3,0))
+        valuesSizer.Add(self.editCheck,pos=(3,1))
+        
+        self.valueEdit=[]
+        self.adcValues=[]
+        self.buttons=[]
+        for i in range(5):
+            self.valueEdit.append(FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3))
+            self.buttons.append(wx.Button(self,id=100+i,label="Fix"))
+            self.Bind(wx.EVT_BUTTON,self.updateEvent,self.buttons[i])
+            grid.Add(self.valueEdit[i],pos=(i+3,0))
+            grid.Add(self.buttons[i],pos=(i+3,1))
+            if i<2:
+                self.valueEdit[i].Enable(True)
+                self.buttons[i].Enable(True)
+            else:
+                self.buttons[i].Enable(False)
+                self.valueEdit[i].Enable(False)
+            
+        self.nPointsList = []    
+        for i in range(4):
+            self.nPointsList.append("%d"%(i+2))
+        self.npointsLabel = wx.StaticText(self, label="Number of points")
+        self.editnpoints = wx.ComboBox(self, size=(95,-1),value="2",choices=self.nPointsList, style=wx.CB_DROPDOWN)
+        self.Bind(wx.EVT_COMBOBOX,self.nPointsChange,self.editnpoints)
+            
+
+        self.setDAC = wx.Button(self,label="Set DAC")
+        self.editDAC = FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3)
+        self.Bind(wx.EVT_BUTTON,self.updateDAC,self.setDAC)
+        grid.Add(self.editDAC,pos=(1,0))
+        grid.Add(self.setDAC,pos=(1,1))
+        
+        self.update=wx.Button(self,label="Get values")
+        self.Bind(wx.EVT_BUTTON,self.getValuesEvent,self.update)
+        grid.Add(self.update,pos=(8,0))
+        
+        self.reset=wx.Button(self,label="Reset")
+        self.Bind(wx.EVT_BUTTON,self.resetEvent,self.reset)
+        grid.Add(self.reset,pos=(8,1))        
+        
+        grid.Add(self.npointsLabel,pos=(0,0))
+        grid.Add(self.editnpoints,pos=(0,1))
+       
+        mainSizer.Add(grid,0,wx.ALL,border=10)
+        mainSizer.Add(valuesSizer,0,wx.ALL,border=10)
+        self.SetSizerAndFit(mainSizer)
+        
+    def nPointsChange(self,event):
+        npoint=self.editnpoints.GetValue()         
+        print npoint
+        for i in range(5):
+            if i<int(npoint):
+                self.valueEdit[i].Enable(True)
+                self.buttons[i].Enable(True)
+            else:
+                self.buttons[i].Enable(False)
+                self.valueEdit[i].Enable(False)
+                      
+    def updateEvent(self,event):
+        button = event.GetEventObject()
+        indice=button.GetId()-100
+        
+        self.realDAC[indice] = self.editDAC.GetValue()
+        self.readDAC[indice] = self.valueEdit[indice].GetValue()
+            
+        self.valueEdit[indice].Enable(False)
+        self.buttons[indice].Enable(False)
+            
+    def getValuesEvent(self,event):
+        npoints = self.editnpoints.GetValue()
+        
+        self.x = []
+        self.y = []
+        for i in range(int(npoints)):
+            self.y.append(self.realDAC[i]*1000)
+            self.x.append(self.readDAC[i]*1000)
+        
+        print self.x
+        print self.y
+        r = numpy.polyfit(self.x,self.y,1)
+        print r
+        self.slope = int(r[0]*1000)
+        self.slope = abs (self.slope)
+        self.intercept = int(round(r[1],0))
+        self.gainsEdit.Clear()
+        self.gainsEdit.AppendText(str(self.slope))
+        
+        self.offsetEdit.Clear()
+        self.offsetEdit.AppendText(str(self.intercept))
+        
+        self.saveCalibration()
+        
+    def resetEvent(self,event):
+        npoints = self.editnpoints.GetValue()
+        for i in range(int(npoints)):
+            self.buttons[i].Enable(True)
+            self.valueEdit[i].Enable(True)
+            
+        self.realDAC = numpy.zeros(5)
+        self.readDAC = numpy.zeros(5)
+
+    def checkDacEvent(self,event):
+        
+        dacValue = self.editCheck.GetValue()*1000
+        print dacValue
+        dacValue*=int(self.gainsEdit.GetLineText(0))
+        data= float(dacValue)
+        data/=1000
+        print data
+        data+=int(self.offsetEdit.GetLineText(0))
+        data+=4096
+        data*=2
+        print data
+        frame.daq.set_analog(data)
+
+    def updateDAC(self,event):
+        
+        dacValue = self.editDAC.GetValue()
+        frame.daq.set_dac(dacValue)
+
+    def saveCalibration(self):
+        frame.daq.set_DAQ_cal(self.slope,self.intercept)
+        
+
 class InitThread (threading.Thread):
     def __init__(self,dial):
         threading.Thread.__init__(self)
