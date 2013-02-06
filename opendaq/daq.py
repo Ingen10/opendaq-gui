@@ -58,6 +58,9 @@ class DAQ:
         self.port = port
         self.open()
         
+        self.gains,self.offset = self.get_cal()
+        self.dacGain,self.dacOffset = self.get_dac_cal()
+        
     def open(self):
         self.ser = serial.Serial(self.port, BAUDS, timeout=.1)
         self.ser.setRTS(0)
@@ -102,8 +105,20 @@ class DAQ:
 
     def read_adc(self):
         return self.send_command('\x01\x00', 'h')[0]
+    
+    def read_analog(self):
+        value = self.send_command('\x01\x00', 'h')[0]
+        #raw to voltage->
+        value*=-self.gains[self.gain]
+        data=float(value)
+        data/=100000
+        data+=self.offset[self.gain]
+        value= float(data)
+        value = value/1000
+        return value
 
     def conf_adc(self, pinput, ninput=0, gain=1, nsamples=20):
+        self.gain = gain
         cmd = struct.pack('BBBBBB', 2, 4, pinput, ninput, gain, nsamples)
         return self.send_command(cmd, 'hBBBB')
     
@@ -117,18 +132,26 @@ class DAQ:
         cmd = struct.pack('BBB', 18, 1, color)
         return self.send_command(cmd, 'B')[0]
 
-    def set_dac(self, volts):
+    def set_analog(self, volts):
         value = int(round(volts*1000))
         if not -4096 < value < 4096:
             raise ValueError('DAQ voltage out of range')
-        cmd = struct.pack('>BBh', 13, 2, value)
+        print "gain",self.dacGain
+        print "offset",self.dacOffset
+        value*=self.dacGain
+        data= float(value)
+        data/=1000
+        data+=self.dacOffset
+        data+=4096
+        data*=2
+        cmd = struct.pack('>BBh', 24, 2, data)
         return self.send_command(cmd, 'h')[0]
     
-    def set_analog(self, raw):
+    def set_dac(self, raw):
         value = int(round(raw))
         if not 0 < value < 16384:
             raise ValueError('DAQ voltage out of range')
-        cmd = struct.pack('>BBh', 24, 2, value)
+        cmd = struct.pack('>BBH', 24, 2, value)
         return self.send_command(cmd, 'h')[0]
         
     def set_port_dir(self, output):
@@ -217,7 +240,7 @@ class DAQ:
         for i in range(5):
             self.__set_calibration(i, gains[i], offsets[i])
             
-    def set_DAQ_cal(self, gain, offset):
+    def set_DAC_cal(self, gain, offset):
         self.__set_calibration(5, gain, offset)
     def conf_channel(self, number, mode, pinput, ninput=0, gain=1, nsamples=1):
         if not 1 <= number <= 4:

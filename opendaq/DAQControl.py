@@ -47,9 +47,15 @@ def scan(num_ports = 20, verbose=True):
     
         try:
       
-            #-- Open serial port
-            s = serial.Serial(i)
-            
+	    #-- Open serial port
+	    #select which Operating System is current installed
+            plt = sys.platform
+	    if plt == "linux2":
+		port = "/dev/ttyUSB%d"%i
+            	s = serial.Serial(port)
+	    elif plt=="win32":
+            	s = serial.Serial(i)
+
             if verbose: print "OK --> %s" % s.portstr
             
             #-- If no errors, add port name to the list
@@ -82,7 +88,7 @@ class ComThread (threading.Thread):
             ch2+=3
         print "configure"
         frame.daq.conf_adc(ch1,ch2,rangeV,20)
-        print frame.daq.read_adc()
+        print frame.daq.read_analog()
         self.delay=float(rate)
         self.delay/=1000
     def stop(self):
@@ -105,17 +111,11 @@ class ComThread (threading.Thread):
             time.sleep(1)
             while self.running:
                 time.sleep(self.delay)
-                data_int = frame.daq.read_adc()
-                data_int*=-frame.gains[frame.page1.editrange.GetCurrentSelection()]
-                data=float(data_int)
-                data/=100000
-                data+=frame.offset[frame.page1.editrange.GetCurrentSelection()]
-                data_V= float(data)
-                data_V = data_V/1000
+                data = frame.daq.read_analog()
                 frame.page1.inputValue.Clear()
-                frame.page1.inputValue.AppendText(str(data_V))
-                self.data_packet.append(data_V)
-                self.x.append(float(data_V))
+                frame.page1.inputValue.AppendText(str(data))
+                self.data_packet.append(data)
+                self.x.append(float(data))
                 self.y.append(float((len(self.x)-1)*self.delay))
                 frame.page1.axes.cla()
                 frame.page1.axes.grid(color='gray', linestyle='dashed')
@@ -404,14 +404,8 @@ class PageOne(wx.Panel):
         
         comunicationThread.stop()
     def sliderChange(self,event):
-        dacValue = self.editvalue.GetValue()*1000
-        dacValue*=frame.dacGain
-        data= float(dacValue)
-        data/=1000
-        data+=frame.dacOffset
-        data+=4096
-        data*=2
-        frame.daq.set_analog(data)
+        dacValue = self.editvalue.GetValue()
+        frame.daq.set_analog(dacValue)
 
 class PageThree(wx.Panel):
     def __init__(self, parent):
@@ -803,13 +797,7 @@ class MainFrame(wx.Frame):
         
         self.daq.enable_crc(1)
         
-        self.gains=[]
-        self.offset=[]
-        self.gains,self.offset = self.daq.get_cal()
-        
-        self.dacGain,self.dacOffset = self.daq.get_dac_cal()
-        
-        self.daq.set_dac(0);
+        self.daq.set_analog(0);
         self.daq.set_port_dir(0)
     
     def OnClose(self,event):
@@ -849,7 +837,7 @@ class InitDlg(wx.Dialog):
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
         self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.edithear = wx.ComboBox(self, size=(200,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
         self.edithear.SetSelection(0)
   
         self.hsizer.Add(self.lblhear,wx.EXPAND)

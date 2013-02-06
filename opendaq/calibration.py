@@ -66,7 +66,7 @@ class MainFrame(wx.Frame):
         
         self.dacgain=0
         self.dacoffset=0
-        self.dacgain,self.dacoffset = self.daq.get_DAC_cal()
+        self.dacgain,self.dacoffset = self.daq.get_dac_cal()
         
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
@@ -249,7 +249,7 @@ class AdcPage(wx.Panel):
     def updateDAC(self,event):
         
         dacValue = self.editDAC.GetValue()
-        frame.daq.set_dac(dacValue)
+        frame.daq.set_analog(dacValue)
 
     def saveCalibration(self):
         self.slope= []
@@ -398,25 +398,19 @@ class DacPage(wx.Panel):
 
     def checkDacEvent(self,event):
         
-        dacValue = self.editCheck.GetValue()*1000
-        print dacValue
-        dacValue*=int(self.gainsEdit.GetLineText(0))
-        data= float(dacValue)
-        data/=1000
-        print data
-        data+=int(self.offsetEdit.GetLineText(0))
-        data+=4096
-        data*=2
-        print data
-        frame.daq.set_analog(data)
+        dacValue = self.editCheck.GetValue()
+        frame.daq.set_analog(dacValue)
 
     def updateDAC(self,event):
         
         dacValue = self.editDAC.GetValue()
+        dacValue *=1000
+        dacValue +=4096
+        dacValue *=2
         frame.daq.set_dac(dacValue)
 
     def saveCalibration(self):
-        frame.daq.set_DAQ_cal(self.slope,self.intercept)
+        frame.daq.set_DAC_cal(self.slope,self.intercept)
         
 
 class InitThread (threading.Thread):

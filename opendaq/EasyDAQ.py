@@ -54,7 +54,13 @@ def scan(num_ports = 20, verbose=True):
         try:
       
             #-- Open serial port
-            s = serial.Serial(i)
+	    #select which Operating system is current installed
+	    plt = sys.platform
+	    if plt == "linux2":
+		    port = "/dev/ttyUSB%d"%i
+		    s = serial.Serial(port)
+	    elif plt =="win32":
+		    s = serial.Serial(i)
             
             if verbose: print "OK --> %s" % s.portstr
             
@@ -988,11 +994,7 @@ class InterfazPanel(wx.Panel):
         #calibration
         for i in range(len(self.buffer)):
             dacValue = self.buffer[i]
-            dacValue*=frame.dacGain
-            data= float(dacValue)
-            data/=1000
-            data+=frame.dacOffset
-            self.buffer[i] = data
+            self.buffer[i] = dacValue
         
         if len(self.buffer)>=140:
             self.buffer=self.buffer[:140]
@@ -1032,18 +1034,10 @@ class MainFrame(wx.Frame):
         self.gains=[]
         self.offset=[]
         self.gains,self.offset = self.daq.get_cal()
-        
-        self.dacGain,self.dacOffset = self.daq.get_dac_cal()
 
     def setVoltage(self,voltage):
-        dacValue = voltage*1000
-        dacValue*=self.dacGain
-        data= float(dacValue)
-        data/=1000
-        data+=self.dacOffset
-        data+=4096
-        data*=2
-        self.daq.set_analog(data)
+        dacValue = voltage
+        self.daq.set_analog(dacValue)
 
     def OnClose(self,event):
         dlg = wx.MessageDialog(self,"Do you really want to close this application?","Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
