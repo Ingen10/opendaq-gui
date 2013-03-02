@@ -117,10 +117,16 @@ class ComThread (threading.Thread):
                 self.data_packet.append(data)
                 self.x.append(float(data))
                 self.y.append(float((len(self.x)-1)*self.delay))
+                if(frame.page1.toolbar.mode=="pan/zoom"):
+                    continue
+                if(frame.page1.toolbar.mode=="zoom rect"):
+                    continue
+                frame.page1.canvas.mpl_disconnect(frame.page1.cidUpdate)
                 frame.page1.axes.cla()
                 frame.page1.axes.grid(color='gray', linestyle='dashed')
                 frame.page1.axes.plot(self.y,self.x)
                 frame.page1.canvas.draw()
+                frame.page1.cidUpdate = frame.page1.canvas.mpl_connect('motion_notify_event', frame.page1.UpdateStatusBar)
 
 class TimerThread (threading.Thread):
     def __init__(self):
@@ -300,7 +306,8 @@ class PageOne(wx.Panel):
         self.canvas.SetInitialSize(size=(600,600))
         
         self.add_toolbar()
-        self.canvas.mpl_connect('motion_notify_event', self.UpdateStatusBar)
+        
+        self.cidUpdate = self.canvas.mpl_connect('motion_notify_event', self.UpdateStatusBar)
         
         plotSizer.Add(self.toolbar,0,wx.CENTER)
         plotSizer.Add(self.canvas,0,wx.ALL)
@@ -316,8 +323,8 @@ class PageOne(wx.Panel):
         if event.inaxes:
             x, y = event.xdata, event.ydata
             
-            frame.statusBar.SetStatusText(( "x= " + "%.2g" % x +
-                                           "  y=" +"%.2g" % y ),
+            frame.statusBar.SetStatusText(( "x= " + "%.4g" % x +
+                                           "  y=" +"%.4g" % y ),
                                            1)
    
     def add_toolbar(self):
@@ -822,7 +829,7 @@ class MainFrame(wx.Frame):
 
 class InitDlg(wx.Dialog): 
     def __init__(self): 
-        wx.Dialog.__init__(self, None, title="EasyDAQ",style=(wx.STAY_ON_TOP | wx.CAPTION)) 
+        wx.Dialog.__init__(self, None, title="DAQControl",style=(wx.STAY_ON_TOP | wx.CAPTION)) 
         self.hsizer = wx.BoxSizer(wx.HORIZONTAL) 
         self.vsizer = wx.BoxSizer(wx.VERTICAL) 
         
@@ -837,7 +844,7 @@ class InitDlg(wx.Dialog):
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
         self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(self, size=(200,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
         self.edithear.SetSelection(0)
   
         self.hsizer.Add(self.lblhear,wx.EXPAND)

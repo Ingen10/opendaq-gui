@@ -95,19 +95,28 @@ class TimerThread (threading.Thread):
         while self.running:
             time.sleep(self.delay)
             if self.drawing:
-                frame.p.axes.clear()
-                #frame.p.axes.autoscale(False)
-                frame.p.axes.grid(color='gray', linestyle='dashed')
-                if(len(comunicationThread.y[0])==len(comunicationThread.x[0])):
-                    frame.p.axes.plot(comunicationThread.y[0],comunicationThread.x[0],color='r')
-                if(len(comunicationThread.y[1])==len(comunicationThread.x[1])):
-                    frame.p.axes.plot(comunicationThread.y[1],comunicationThread.x[1],color='g')
-                if(len(comunicationThread.y[2])==len(comunicationThread.x[2])):
-                    frame.p.axes.plot(comunicationThread.y[2],comunicationThread.x[2],color='b')
-                if(len(comunicationThread.y[3])==len(comunicationThread.x[3])):
-                    frame.p.axes.plot(comunicationThread.y[3],comunicationThread.x[3],color='k')
-                frame.p.canvas.draw()
-                #frame.p.canvas.Draw(drawLinePlot(comunicationThread.data[0],comunicationThread.data[1],comunicationThread.data[2],comunicationThread.data[3]))
+                if(frame.p.toolbar.mode=="pan/zoom"):
+                    continue
+                if(frame.p.toolbar.mode=="zoom rect"):
+                    continue
+                frame.p.canvas.mpl_disconnect(frame.p.cidUpdate)
+                try:
+                    frame.p.axes.clear()
+                    frame.p.axes.autoscale(False)
+                    frame.p.axes.grid(color='gray', linestyle='dashed')
+                    if(len(comunicationThread.y[0])==len(comunicationThread.x[0])):
+                        frame.p.axes.plot(comunicationThread.y[0],comunicationThread.x[0],color='r')
+                    if(len(comunicationThread.y[1])==len(comunicationThread.x[1])):
+                        frame.p.axes.plot(comunicationThread.y[1],comunicationThread.x[1],color='g')
+                    if(len(comunicationThread.y[2])==len(comunicationThread.x[2])):
+                        frame.p.axes.plot(comunicationThread.y[2],comunicationThread.x[2],color='b')
+                    if(len(comunicationThread.y[3])==len(comunicationThread.x[3])):
+                        frame.p.axes.plot(comunicationThread.y[3],comunicationThread.x[3],color='k')
+                    frame.p.canvas.draw()
+                    frame.p.axes.autoscale(True)
+                except:
+                    print "Error trying to paint"
+                frame.p.cidUpdate = frame.p.canvas.mpl_connect('motion_notify_event', frame.p.UpdateStatusBar)
                 self.endTime=time.time()
 
 class ComThread (threading.Thread):
@@ -717,12 +726,14 @@ class InterfazPanel(wx.Panel):
         
         self.axes.set_xlabel("Time (s)",fontsize=12)
         self.axes.set_ylabel("Voltage (mV)",fontsize=12)
+
+        self.axes.autoscale(False)
         
         self.canvas.SetInitialSize(size=(600,600))
 
         self.add_toolbar()
         
-        self.canvas.mpl_connect('motion_notify_event', self.UpdateStatusBar)
+        self.cidUpdate = self.canvas.mpl_connect('motion_notify_event', self.UpdateStatusBar)
         
         plotSizer.Add(self.toolbar, 0, wx.CENTER)
         plotSizer.Add(self.canvas,0,wx.ALL)
@@ -736,8 +747,8 @@ class InterfazPanel(wx.Panel):
         if event.inaxes:
             x, y = event.xdata, event.ydata
             
-            frame.statusBar.SetStatusText(( "x= " + "%.2g" % x +
-                                           "  y=" +"%.2g" % y ),
+            frame.statusBar.SetStatusText(( "x= " + "%.4g" % x +
+                                           "  y=" +"%.4g" % y ),
                                            1)
         
     def add_toolbar(self):
