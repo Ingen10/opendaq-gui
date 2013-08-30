@@ -54,15 +54,25 @@ def check_stream_crc(head, data):
 
 
 class DAQ:
+    
     def __init__(self, port):
+        self.vHW = ""
         self.port = port
         self.open()
+                
+        info = self.get_info()
+        
+        if info[0] == 1:
+            self.vHW = "m"
+        else:
+            if info[0] == 2:
+                self.vHW = "s"                
         
         self.gains,self.offset = self.get_cal()
-        self.dacGain,self.dacOffset = self.get_dac_cal()
-        
-    def open(self):
-        self.ser = serial.Serial(self.port, BAUDS, timeout=.1)
+        self.dacGain,self.dacOffset = self.get_dac_cal()                 
+
+    def open(self):      
+        self.ser = serial.Serial(self.port, BAUDS, timeout=1)            
         self.ser.setRTS(0)
         time.sleep(2)
 
@@ -102,23 +112,52 @@ class DAQ:
 
     def get_info(self):
         return self.send_command('\x27\x00', 'bbI')
+    
+    def get_vHW(self):
+        return self.vHW
 
     def read_adc(self):
         return self.send_command('\x01\x00', 'h')[0]
     
     def read_analog(self):
         value = self.send_command('\x01\x00', 'h')[0]
+        print "valor en crudo", value
         #raw to voltage->
-        value*=-self.gains[self.gain]
+        
+        if self.vHW == "m":
+            index = self.gain
+        if self.vHW == "s":
+            index = self.input
+
+        value*=self.gains[index]
+            
         data=float(value)
-        data/=100000
-        data+=self.offset[self.gain]
+        if self.vHW == "m":
+            data/=100000
+        if self.vHW == "s":
+            data/=10000
+            
+        data+=self.offset[index]
         value= float(data)
         value = value/1000
         return value
 
-    def conf_adc(self, pinput, ninput=0, gain=1, nsamples=20):
+    def conf_adc(self, pinput, ninput=0, gain=0, nsamples=20):
         self.gain = gain
+        self.input = pinput
+        
+        if self.vHW == "s" and ninput != 0:#SD
+            if pinput == 1 or pinput == 2:
+                self.input = 9
+            if pinput == 3 or pinput == 4:
+                self.input = 10
+            if pinput == 5 or pinput == 6:
+                self.input = 11
+            if pinput == 7 or pinput == 8:
+                self.input = 12
+                
+            
+            
         cmd = struct.pack('BBBBBB', 2, 4, pinput, ninput, gain, nsamples)
         return self.send_command(cmd, 'hBBBB')
     
@@ -133,18 +172,25 @@ class DAQ:
         return self.send_command(cmd, 'B')[0]
 
     def set_analog(self, volts):
-        value = int(round(volts*1000))
-        if not -4096 < value < 4096:
+        value = int(round(volts*1000))        
+        if self.vHW == "m" and not -4096 <= value < 4096:
             raise ValueError('DAQ voltage out of range')
-        print "gain",self.dacGain
-        print "offset",self.dacOffset
+        if self.vHW == "s" and not 0 <= value < 4096:
+            raise ValueError('DAQ voltage out of range')
         value*=self.dacGain
         data= float(value)
         data/=1000
         data+=self.dacOffset
         data+=4096
-        data*=2
-        cmd = struct.pack('>BBh', 24, 2, data)
+        data*=2   
+        
+        if self.vHW == "s":
+            if data < 0:
+                data = 0
+            if data > 32767:
+                data = 32767
+            
+        cmd = struct.pack('>BBh', 24, 2, data)        
         return self.send_command(cmd, 'h')[0]
     
     def set_dac(self, raw):
@@ -212,36 +258,49 @@ class DAQ:
 
     def __get_calibration(self, gain_id):
         cmd = struct.pack('>BBB', 36, 1, gain_id)
-        return self.send_command(cmd, 'BHh')
+        return self.send_command(cmd, 'BHh')        
         
     def get_cal(self):
         gains = []
         offsets = []
-
-        for i in range(5):
-            gain_id, gain, offset = self.__get_calibration(i)
+        
+        ran = 0
+        if self.vHW == "m":
+            ran = 6
+        if self.vHW == "s":
+            ran = 17
+        
+        for i in range(ran):            
+            gain_id, gain, offset = self.__get_calibration(i)            
             gains.append(gain)
             offsets.append(offset)
 
         return gains, offsets
             
     def get_dac_cal(self):
-        gain_id,gain, offset = self.__get_calibration(5)
-        print gain_id
-        print gain
-        print offset
+        gain_id,gain, offset = self.__get_calibration(0)        
+
         return gain,offset
             
     def __set_calibration(self, gain_id, gain, offset):
         cmd = struct.pack('>BBBHh', 37, 5, gain_id, gain, offset)
-        return self.send_command(cmd, 'BHh')
+        return self.send_command(cmd, 'BHh')    
 
-    def set_cal(self, gains, offsets):
-        for i in range(5):
-            self.__set_calibration(i, gains[i], offsets[i])
+    def set_cal(self, gains, offsets, flag):
+        if flag == "M":
+            for i in range(1,6):
+                self.__set_calibration(i, gains[i-1], offsets[i-1])
+                
+        if flag == "SE":
+            for i in range(1,9):
+                self.__set_calibration(i, gains[i-1], offsets[i-1])
+                
+        if flag == "DE":
+            for i in range(9,17):
+                self.__set_calibration(i, gains[i-9], offsets[i-9])
             
     def set_DAC_cal(self, gain, offset):
-        self.__set_calibration(5, gain, offset)
+        self.__set_calibration(0, gain, offset)
     def conf_channel(self, number, mode, pinput, ninput=0, gain=1, nsamples=1):
         if not 1 <= number <= 4:
             raise ValueError('Invalid number')
@@ -395,6 +454,28 @@ class DAQ:
         channel.append(self.header[4]-1)
         return 1
 
+    def setVHW(self, v):
+        self.vHW = v
+        
+    def set_DAC_gain_offset(self, g, o):
+        self.dacGain = g
+        self.dacOffset = o
+        
+    def set_gains_offsets(self, g, o):
+        self.gains = g
+        self.offset = o
+    
+        
+''' 
+    def debug_sc(self, gain_id, gain, offset):
+        print "enviando set_calibration id", gain_id, "gain", gain, "offset", offset
+        cmd = struct.pack('>BBBHh', 37, 5, gain_id, gain, offset)
+        return self.send_command(cmd, 'BHh')
+    
+    def debug_gc(self, gain_id):
+        cmd = struct.pack('>BBB', 36, 1, gain_id)
+        return self.send_command(cmd, 'BHh')
+'''
 
 if __name__ == '__main__':
     import time, sys

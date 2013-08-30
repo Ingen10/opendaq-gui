@@ -82,10 +82,6 @@ class ComThread (threading.Thread):
         self.delay=0.001
     def config(self,ch1,ch2,rangeV,rate):
         ch1+=1
-        if ch2==1:
-            ch2=25
-        elif ch2>1:
-            ch2+=3
         print "configure"
         frame.daq.conf_adc(ch1,ch2,rangeV,20)
         print frame.daq.read_analog()
@@ -121,6 +117,7 @@ class ComThread (threading.Thread):
                     continue
                 if(frame.page1.toolbar.mode=="zoom rect"):
                     continue
+		    		    
                 frame.page1.canvas.mpl_disconnect(frame.page1.cidUpdate)
                 frame.page1.axes.cla()
                 frame.page1.axes.grid(color='gray', linestyle='dashed')
@@ -191,9 +188,10 @@ class MyCustomToolbar(NavigationToolbar2Wx):
         self.DeleteToolByPos(1)  
                                 
 class PageOne(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, versionHW):
         wx.Panel.__init__(self, parent)
-       
+	self.versionHW = versionHW
+	
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
         grid = wx.GridBagSizer(hgap=5, vgap=5)
         grid2 = wx.GridBagSizer(hgap=5, vgap=5)
@@ -222,25 +220,48 @@ class PageOne(wx.Panel):
         grid.Add(self.editch1,pos=(0,1)) 
         
         self.sampleList = []
-        self.sampleList.append("AGND")
-        self.sampleList.append("VREF")
-        self.sampleList.append("A5")
-        self.sampleList.append("A6")
-        self.sampleList.append("A7")
-        self.sampleList.append("A8")
+	
+	if self.versionHW == 1:
+	    self.sampleList.append("AGND")
+	    self.sampleList.append("VREF")
+	    self.sampleList.append("A5")
+	    self.sampleList.append("A6")
+	    self.sampleList.append("A7")
+	    self.sampleList.append("A8")
+	else:
+	    if self.versionHW == 2:
+		self.sampleList.append("AGND")
+		self.sampleList.append("A2")
+	
         self.lblch2 = wx.StaticText(self, label="Ch-")
         grid.Add(self.lblch2,pos=(1,0))
         self.editch2 = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
         self.editch2.SetSelection(0)
         grid.Add(self.editch2,pos=(1,1)) 
+	self.Bind(wx.EVT_COMBOBOX, self.editch1Change,self.editch1)
         
         self.sampleList = []
-        self.sampleList.append("+-12 V")
-        self.sampleList.append("+-4 V")    
-        self.sampleList.append("+-2 V")   
-        self.sampleList.append("+-0.4 V")
-        self.sampleList.append("+-0.04 V")        
-        self.lblrange = wx.StaticText(self, label="Range")
+	
+	if self.versionHW == 1:
+	    self.sampleList.append("+-12 V")
+	    self.sampleList.append("+-4 V")    
+	    self.sampleList.append("+-2 V")   
+	    self.sampleList.append("+-0.4 V")
+	    self.sampleList.append("+-0.04 V")        
+	    self.lblrange = wx.StaticText(self, label="Range")
+	else:
+	    if self.versionHW == 2:
+		self.sampleList.append("x1")
+		self.sampleList.append("x2")
+		self.sampleList.append("x4")
+		self.sampleList.append("x5")
+		self.sampleList.append("x8")
+		self.sampleList.append("x10")
+		self.sampleList.append("x16")
+		self.sampleList.append("x20")
+		self.lblrange = wx.StaticText(self, label="Multiplier")
+	
+	
         grid.Add(self.lblrange,pos=(2,0))
         self.editrange = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
         self.editrange.SetSelection(0)
@@ -252,10 +273,11 @@ class PageOne(wx.Panel):
         self.editrate=(FloatSpin(self,value=1,min_val=0.1,max_val=65.535,increment=0.1,digits=1))
         grid.Add(self.editrate,pos=(3,1)) 
         
-        self.buttonPlay = wx.Button(self, label="Play")
+        self.buttonPlay = wx.Button(self, label="Play", size=(95, 25))
         self.Bind(wx.EVT_BUTTON, self.PlayEvent,self.buttonPlay)
-        self.buttonStop = wx.Button(self, label="Stop")
-        self.Bind(wx.EVT_BUTTON, self.StopEvent,self.buttonStop)
+        self.buttonStop = wx.Button(self, label="Stop", size=(95,25))
+        self.Bind(wx.EVT_BUTTON, self.StopEvent,self.buttonStop)	
+	
         self.buttonStop.Enable(False) 
         
         grid.Add(self.buttonPlay,pos=(4,0))
@@ -263,7 +285,7 @@ class PageOne(wx.Panel):
         
         self.lblvalue = wx.StaticText(self, label="Last value (V)")
         grid.Add(self.lblvalue,pos=(5,0))   
-        self.inputValue = wx.TextCtrl(self,style=wx.TE_READONLY)
+        self.inputValue = wx.TextCtrl(self,style=wx.TE_READONLY, size=(95, 25))
         grid.Add(self.inputValue,pos=(5,1))
         
         self.inputSizer.Add(grid,0,wx.ALL,border=10)
@@ -278,7 +300,7 @@ class PageOne(wx.Panel):
         self.lblDAC = wx.StaticText(self, label="DAC value (V)")
         
         grid2.Add(self.lblDAC,pos=(0,0))
-        grid2.Add(self.editvalue,pos=(0,1))
+        grid2.Add(self.editvalue,pos=(0,3))
         
         self.outputSizer.Add(grid2,0,wx.ALL,border=10)
         
@@ -286,9 +308,9 @@ class PageOne(wx.Panel):
         self.exportLbl = box
         self.exportSizer=wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)   
         
-        self.png = wx.Button(self,label="As PNG file...")
+        self.png = wx.Button(self,label="As PNG file...", size=(98, 25))
         self.Bind(wx.EVT_BUTTON,self.saveAsPNGEvent,self.png)
-        self.csv= wx.Button(self,label="As CSV file...")
+        self.csv= wx.Button(self,label="As CSV file...", size=(98, 25))
         self.Bind(wx.EVT_BUTTON,self.saveAsCSVEvent,self.csv)
         
         hSizer2.Add(self.png,0,wx.ALL)
@@ -384,7 +406,19 @@ class PageOne(wx.Panel):
             frame.ShowErrorParameters()
             return
         
-        comunicationThread.config(self.ch1,self.ch2,self.range,self.rate)
+	if self.versionHW == 2 and self.ch2 == 1:
+	    self.ch2 = self.editch2.GetValue()
+	    self.ch2 = self.ch2[1]
+	    
+	    
+	if self.versionHW == 1:
+	    if self.ch2==1:
+		self.ch2=25
+	    elif self.ch2>1:
+		self.ch2+=3
+	    
+	print self.ch2
+        comunicationThread.config(self.ch1, int(self.ch2),self.range,self.rate)
         
         self.buttonPlay.Enable(False)
         self.buttonStop.Enable(True)
@@ -413,6 +447,36 @@ class PageOne(wx.Panel):
     def sliderChange(self,event):
         dacValue = self.editvalue.GetValue()
         frame.daq.set_analog(dacValue)
+	
+    def editch1Change(self, event):	
+	if self.versionHW == 1:
+	    return		
+	
+	value = self.editch1.GetValue()	
+	self.editch2.Clear()
+			
+	self.editch2.Append("AGND")
+	
+	if value == "A1":
+	    self.editch2.Append("A2")
+	elif value == "A2":
+	    self.editch2.Append("A1")
+	elif value == "A3":
+	    self.editch2.Append("A4")
+	elif value == "A4":
+	    self.editch2.Append("A3")
+	elif value == "A5":
+	    self.editch2.Append("A6")
+	elif value == "A6":
+	    self.editch2.Append("A5")
+	elif value == "A7":
+	    self.editch2.Append("A8")
+	elif value == "A8":
+	    self.editch2.Append("A7")
+	    
+	self.editch2.SetSelection(0)
+	
+	
 
 class PageThree(wx.Panel):
     def __init__(self, parent):
@@ -465,11 +529,11 @@ class PageThree(wx.Panel):
         #hSizer.Add(grid,0,wx.ALL)
         #mainSizer.Add(hSizer, 0 , wx.ALL)
        
-        self.buttonUpdate = wx.Button(self, label="Update")
+        self.buttonUpdate = wx.Button(self, label="Update", pos=(80, 420))
         self.Bind(wx.EVT_BUTTON, self.UpdateEvent,self.buttonUpdate)
        
         mainSizer.Add(grid,0,wx.ALL,border=20)
-        mainSizer.Add(self.buttonUpdate,0,wx.ALL,border=20)
+        #mainSizer.Add(self.buttonUpdate,0,wx.ALL,border=20)
         self.SetSizerAndFit(mainSizer)
         
     def UpdateEvent(self,event):
@@ -570,8 +634,8 @@ class PageFour(wx.Panel):
         self.stopCounter.Enable(False)
         self.Bind(wx.EVT_BUTTON,self.stopCounterEvent,self.stopCounter)
         
-        counterSizer.Add(self.setCounter,0,wx.ALL,border=5)
-        counterSizer.Add(self.get_counter,0,wx.ALL,border=5)
+	counterSizer.Add(self.get_counter,0,wx.ALL,border=5)
+        counterSizer.Add(self.setCounter,0,wx.ALL,border=5)        
         counterSizer.Add(self.stopCounter,0,wx.ALL,border=5)
   
         self.get_capture = wx.TextCtrl(self,style=wx.TE_READONLY)
@@ -768,14 +832,21 @@ class MainFrame(wx.Frame):
         self.statusBar = self.CreateStatusBar()
         self.statusBar.SetFieldsCount(2)
         info = self.daq.get_info()
-        self.statusBar.SetStatusText("H:%dV:%d"%(info[0],info[1]),0)
+	vHW = "?"
+	if info[0] == 1:
+	    vHW = "[M]"
+	else:
+	    if info[0] == 2:
+		vHW = "[S]"
+	    
+        self.statusBar.SetStatusText("H:%s V:%d"%(vHW,info[1]),0)
         
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
         self.nb = wx.Notebook(self.p)
         
         # create the page windows as children of the notebook
-        self.page1 = PageOne(self.nb)
+        self.page1 = PageOne(self.nb, info[0])
         self.page1.SetBackgroundColour('#ece9d8')
         #self.page2 = PageTwo(self.nb)
         self.page3 = PageThree(self.nb)
@@ -852,6 +923,9 @@ class InitDlg(wx.Dialog):
 
         self.buttonOk = wx.Button(self,label="OK")
         self.Bind(wx.EVT_BUTTON,self.okEvent,self.buttonOk)
+	
+	self.buttonCancel = wx.Button(self,label="Cancel", pos=(115, 22))
+        self.Bind(wx.EVT_BUTTON,self.cancelEvent,self.buttonCancel)
         
         self.vsizer.Add(self.hsizer,wx.EXPAND)
         self.vsizer.Add(self.buttonOk,wx.EXPAND)
@@ -867,6 +941,7 @@ class InitDlg(wx.Dialog):
         if portN>=0:
             self.buttonOk.Show(False)
             self.edithear.Show(False)
+	    self.buttonCancel.Show(False)
             self.gauge.Show()
             daq = DAQ(self.sampleList[portN])
             try :
@@ -886,6 +961,11 @@ class InitDlg(wx.Dialog):
             dlg = wx.MessageDialog(self,"Not a valid port","Retry", wx.OK | wx.ICON_QUESTION)
             dlg.ShowModal()
             dlg.Destroy()
+	    
+    def cancelEvent(self, event):
+	self.port=0
+	self.EndModal(0)
+		
 class MyApp(wx.App):
     def OnInit(self):
         dial = InitDlg()
