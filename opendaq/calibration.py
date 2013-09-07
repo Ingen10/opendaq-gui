@@ -20,7 +20,7 @@ from wx.lib.agw.floatspin import FloatSpin
 def scan(num_ports = 20, verbose=True):
    
     #-- List of serial devices. Initially empty
-    dispositivos_serie = []
+    serial_devices = []
     
     if verbose:
         print "Escanenado %d puertos serie:" % num_ports
@@ -40,7 +40,7 @@ def scan(num_ports = 20, verbose=True):
             if verbose: print "OK --> %s" % s.portstr
             
             #-- If no errors, add the number and name to the list
-            dispositivos_serie.append( (i, s.portstr))
+            serial_devices.append( (i, s.portstr))
             
             s.close()
             
@@ -49,7 +49,7 @@ def scan(num_ports = 20, verbose=True):
             if verbose: print "NO"
             pass
     #-- Return list of found serial devices   
-    return dispositivos_serie
+    return serial_devices
 
 
 class MainFrame(wx.Frame):
@@ -177,12 +177,11 @@ class AdcPage(wx.Panel):
         self.sampleList = []
         self.sampleList2 = []
         if frame.vHW == "m":
-            self.sampleList.append("+-12")
-            self.sampleList.append("+-4")    
-            self.sampleList.append("+-2")   
-            self.sampleList.append("+-0.4")
-            self.sampleList.append("+-0.04")        
-            self.lblrange = wx.StaticText(self, label="Range")
+            self.sampleList.append("+-12 V")
+            self.sampleList.append("+-4 V")    
+            self.sampleList.append("+-2 V")   
+            self.sampleList.append("+-0.4 V")
+            self.sampleList.append("+-0.04 V")        
         if frame.vHW == "s":
             self.sampleList.append("SE")
             self.sampleList.append("DE")
@@ -195,9 +194,10 @@ class AdcPage(wx.Panel):
         self.Bind(wx.EVT_COMBOBOX,self.rangeChange,self.editrange)
         grid.Add(self.editrange,pos=(1,0)) 
         
-        self.selection = wx.ComboBox(self, size=(95,-1),choices=self.sampleList2, style=wx.CB_READONLY)
-        self.selection.SetSelection(0)
-        grid.Add(self.selection,pos=(1,1)) 
+        if frame.vHW == "s":
+            self.selection = wx.ComboBox(self, size=(95,-1),choices=self.sampleList2, style=wx.CB_READONLY)
+            self.selection.SetSelection(0)
+            grid.Add(self.selection,pos=(1,1)) 
         
         self.setDAC = wx.Button(self,label="Set DAC")        
         self.editDAC = FloatSpin(self,value=0,min_val=-4.096,max_val=4.096,increment=0.001,digits=3)
@@ -209,6 +209,10 @@ class AdcPage(wx.Panel):
         self.Bind(wx.EVT_BUTTON,self.getValuesEvent,self.update)
         grid.Add(self.update,pos=(8,0))
         
+        self.export=wx.Button(self,label="Export...")
+        self.Bind(wx.EVT_BUTTON,self.exportEvent,self.export)
+        grid.Add(self.export,pos=(8,1))
+        
         grid.Add(self.npointsLabel,pos=(0,0))
         grid.Add(self.editnpoints,pos=(0,1))
        
@@ -218,7 +222,6 @@ class AdcPage(wx.Panel):
         
     def nPointsChange(self,event):
         npoint=self.editnpoints.GetValue()         
-        print npoint
         for i in range(5):
             if i<int(npoint):
                 self.valueEdit[i].Enable(True)
@@ -271,9 +274,10 @@ class AdcPage(wx.Panel):
                 
     def updateEvent(self,event):
         self.range = self.editrange.GetCurrentSelection()
-        input = self.selection.GetCurrentSelection()+1
+        if frame.vHW == "s":
+            input = self.selection.GetCurrentSelection()+1
         button = event.GetEventObject()
-        indice=button.GetId()-100                
+        index1=button.GetId()-100                
         
         if frame.vHW == "m":
             frame.daq.conf_adc(8,0,self.range,20)
@@ -289,13 +293,14 @@ class AdcPage(wx.Panel):
         time.sleep(0.5)
         data_int = frame.daq.read_adc()
                     
-        self.adcValues[indice].Clear()
-        self.adcValues[indice].AppendText(str(data_int))
+        self.adcValues[index1].Clear()
+        self.adcValues[index1].AppendText(str(data_int))
             
     def getValuesEvent(self,event):
         npoints = self.editnpoints.GetValue()
         self.range = self.editrange.GetCurrentSelection()
-        sel = self.selection.GetCurrentSelection()
+        if frame.vHW == "s":
+            sel = self.selection.GetCurrentSelection()
         
         self.x = []
         self.y = []
@@ -307,10 +312,8 @@ class AdcPage(wx.Panel):
             self.y.append(dacValueInt)
             self.x.append(adcValueInt)
         
-        print self.x
-        print self.y
         r = numpy.polyfit(self.x,self.y,1)
-        print "R=", r
+
         
         if frame.vHW == "m":
             self.slope = int(r[0]*100000)
@@ -328,6 +331,9 @@ class AdcPage(wx.Panel):
 
             self.offsetEdit[self.range].Clear()
             self.offsetEdit[self.range].AppendText(str(self.intercept))
+            
+            frame.adcgains[self.range+1] = self.slope
+            frame.adcoffset[self.range+1] = self.intercept
             
         if frame.vHW == "s":
             self.gainsEdit[sel].Clear()
@@ -380,9 +386,71 @@ class AdcPage(wx.Panel):
                     value = self.offsetEdit[i].GetLineText(0)
                     self.intercept.append(int(value)) 
             
-        print self.slope
-        print self.intercept
         frame.daq.set_cal(self.slope,self.intercept, self.flag)
+        
+    def exportEvent(self, event):        
+        dlg = wx.TextEntryDialog(self, 'openDAQ ID:', 'ID', style=wx.OK|wx.CANCEL)
+        res = dlg.ShowModal()
+        id = dlg.GetValue()        
+        dlg.Destroy()
+                
+        if res == wx.ID_CANCEL:
+            return
+        
+        self.dirname=''
+        dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.txt",wx.SAVE)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.filename = dlg.GetFilename()
+            self.dirname = dlg.GetDirectory()
+            self.exportCalibration(self.dirname+"/"+self.filename, id)            
+        dlg.Destroy() 
+        
+    def exportCalibration(self, file, id):
+        outputfile = open(file,'w')        
+        model = "unknown"
+        if frame.vHW == "m":
+            model = "M"
+        if frame.vHW == "s":
+            model = "S"                        
+            
+        output="CALIBRATION REPORT OPENDAQ-" + model + ": " + id + "\n\n"
+        outputfile.write(output)
+        output = "DAC CALIBRATION\n"
+        outputfile.write(output)
+        output = "Slope: " + str(frame.dacgain) + "    Intercept: " + str(frame.dacoffset) + "\n\n"
+        outputfile.write(output)
+        output = "ADC CALIBRATION\n"
+        outputfile.write(output)
+        
+        if frame.vHW == "s":
+            for i in range(1,9):
+                output = "A%d:\n"%i
+                outputfile.write(output)
+                output = "Slope: " + str(frame.adcgains[i]) + "    Intercept: " + str(frame.adcoffset[i]) + "\n"
+                outputfile.write(output)
+            outputfile.write("\n")
+            for i in range (9, 17):
+                if i%2:
+                    output = "A" + str(i-8) + "-A" + str(i-7)
+                else:
+                    output = "A" + str(i-8) + "-A" + str(i-9)
+                
+                output+=":\n"
+                outputfile.write(output)
+                output = "Slope: " + str(frame.adcgains[i]) + "    Intercept: " + str(frame.adcoffset[i]) + "\n"
+                outputfile.write(output)
+                
+        if frame.vHW == "m":
+            for i in range(1,6):
+                output = "Gain%d:\n"%i
+                outputfile.write(output)
+                output = "Slope: " + str(frame.adcgains[i]) + "    Intercept: " + str(frame.adcoffset[i]) + "\n"
+                outputfile.write(output)      
+                
+        dlg = wx.MessageDialog(self,"Report saved","Report saved", wx.OK | wx.ICON_QUESTION)
+        dlg.ShowModal()
+        dlg.Destroy()
+        
         
 class DacPage(wx.Panel):
     def __init__(self, parent,gains,offset, frame):
@@ -468,8 +536,7 @@ class DacPage(wx.Panel):
         self.SetSizerAndFit(mainSizer)
         
     def nPointsChange(self,event):
-        npoint=self.editnpoints.GetValue()         
-        print npoint
+        npoint=self.editnpoints.GetValue()                 
         for i in range(5):
             if i<int(npoint):
                 self.valueEdit[i].Enable(True)
@@ -480,13 +547,13 @@ class DacPage(wx.Panel):
                       
     def updateEvent(self,event):
         button = event.GetEventObject()
-        indice=button.GetId()-100
+        index1=button.GetId()-100
         
-        self.realDAC[indice] = self.editDAC.GetValue()
-        self.readDAC[indice] = self.valueEdit[indice].GetValue()
+        self.realDAC[index1] = self.editDAC.GetValue()
+        self.readDAC[index1] = self.valueEdit[index1].GetValue()
             
-        self.valueEdit[indice].Enable(False)
-        self.buttons[indice].Enable(False)
+        self.valueEdit[index1].Enable(False)
+        self.buttons[index1].Enable(False)
             
     def getValuesEvent(self,event):
         npoints = self.editnpoints.GetValue()
@@ -496,11 +563,8 @@ class DacPage(wx.Panel):
         for i in range(int(npoints)):
             self.y.append(self.realDAC[i]*1000)
             self.x.append(self.readDAC[i]*1000)
-        
-        print self.x
-        print self.y
-        r = numpy.polyfit(self.x,self.y,1)
-        print r
+               
+        r = numpy.polyfit(self.x,self.y,1)        
         self.slope = int(r[0]*1000)
         self.slope = abs (self.slope)
         self.intercept = int(round(r[1],0))
@@ -512,6 +576,8 @@ class DacPage(wx.Panel):
 
         frame.adcgains[0] = self.slope
         frame.adcoffset[0] = self.intercept
+        frame.dacgain = self.slope
+        frame.dacoffset = self.intercept
         frame.daq.set_DAC_gain_offset(self.slope, self.intercept)
                 
         self.saveCalibration()
@@ -565,7 +631,6 @@ class InitDlg(wx.Dialog):
         
         puertos_disponibles=scan(num_ports=255,verbose=False)
         self.sampleList = []
-        #-- Recorrer la lista mostrando los que se han podido abrir
         if len(puertos_disponibles)!=0:
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
@@ -619,7 +684,7 @@ class InitDlg(wx.Dialog):
             
     def cancelEvent(self, event):
 	self.port=0
-	self.EndModal(0)
+	self.EndModal(0)        
             
 class MyApp(wx.App):
     def OnInit(self):

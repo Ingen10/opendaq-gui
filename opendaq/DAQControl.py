@@ -82,9 +82,7 @@ class ComThread (threading.Thread):
         self.delay=0.001
     def config(self,ch1,ch2,rangeV,rate):
         ch1+=1
-        print "configure"
         frame.daq.conf_adc(ch1,ch2,rangeV,20)
-        print frame.daq.read_analog()
         self.delay=float(rate)
         self.delay/=1000
     def stop(self):
@@ -215,7 +213,7 @@ class PageOne(wx.Panel):
         self.sampleList.append("A8")
         self.lblch1 = wx.StaticText(self, label="Ch+")
         grid.Add(self.lblch1,pos=(0,0))
-        self.editch1 = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.editch1 = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
         self.editch1.SetSelection(0)
         grid.Add(self.editch1,pos=(0,1)) 
         
@@ -235,7 +233,7 @@ class PageOne(wx.Panel):
 	
         self.lblch2 = wx.StaticText(self, label="Ch-")
         grid.Add(self.lblch2,pos=(1,0))
-        self.editch2 = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.editch2 = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
         self.editch2.SetSelection(0)
         grid.Add(self.editch2,pos=(1,1)) 
 	self.Bind(wx.EVT_COMBOBOX, self.editch1Change,self.editch1)
@@ -263,7 +261,7 @@ class PageOne(wx.Panel):
 	
 	
         grid.Add(self.lblrange,pos=(2,0))
-        self.editrange = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.editrange = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
         self.editrange.SetSelection(0)
         grid.Add(self.editrange,pos=(2,1)) 
         
@@ -370,8 +368,6 @@ class PageOne(wx.Panel):
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
             self.dirname = dlg.GetDirectory()
-            print self.filename
-            print self.dirname
             self.figure.savefig(self.dirname+"\\"+self.filename)
         dlg.Destroy()   
              
@@ -381,15 +377,13 @@ class PageOne(wx.Panel):
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
             self.dirname = dlg.GetDirectory()
-            print self.filename
-            print self.dirname 
             with open(self.dirname+"\\"+self.filename, 'wb') as csvfile:
                 spamwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
                 for i in range(len(comunicationThread.data)):
                     spamwriter.writerow([comunicationThread.x[i],comunicationThread.y[i]])
         dlg.Destroy()          
     def ZoomUp(self,event):
-        print "Evento capturado"
+        pass
     def PlayEvent(self,event):
         self.ch1 = self.editch1.GetCurrentSelection()
         self.ch2 = self.editch2.GetCurrentSelection()
@@ -417,7 +411,6 @@ class PageOne(wx.Panel):
 	    elif self.ch2>1:
 		self.ch2+=3
 	    
-	print self.ch2
         comunicationThread.config(self.ch1, int(self.ch2),self.range,self.rate)
         
         self.buttonPlay.Enable(False)
@@ -481,7 +474,7 @@ class PageOne(wx.Panel):
 class PageThree(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)    
-        indice=100
+        index1=100
         
         self.rb=[]
         self.label=[]
@@ -518,7 +511,7 @@ class PageThree(wx.Panel):
             radioList.append("Output")
             self.label.append(wx.StaticText(self, label="D%d" % (i+1)))
             self.rb.append(wx.RadioBox(self, label="Select input or output?",  choices=radioList, majorDimension=2,style=wx.RA_SPECIFY_COLS))
-            self.buttons.append(wx.BitmapButton(self, id=indice+i,bitmap=self.imageGreen,pos=(10, 20), size = (self.imageGreen.GetWidth()+5, self.imageGreen.GetHeight()+5)))
+            self.buttons.append(wx.BitmapButton(self, id=index1+i,bitmap=self.imageGreen,pos=(10, 20), size = (self.imageGreen.GetWidth()+5, self.imageGreen.GetHeight()+5)))
             self.output.append(False)
             self.value.append(False)
             self.Bind(wx.EVT_BUTTON,self.OutputChange,self.buttons[i])
@@ -526,14 +519,12 @@ class PageThree(wx.Panel):
             grid.Add(self.label[i],pos=(i,0))
             grid.Add(self.rb[i],pos=(i,1))
             grid.Add(self.buttons[i],pos=(i,2))
-        #hSizer.Add(grid,0,wx.ALL)
-        #mainSizer.Add(hSizer, 0 , wx.ALL)
+
        
         self.buttonUpdate = wx.Button(self, label="Update", pos=(80, 420))
         self.Bind(wx.EVT_BUTTON, self.UpdateEvent,self.buttonUpdate)
        
         mainSizer.Add(grid,0,wx.ALL,border=20)
-        #mainSizer.Add(self.buttonUpdate,0,wx.ALL,border=20)
         self.SetSizerAndFit(mainSizer)
         
     def UpdateEvent(self,event):
@@ -544,12 +535,10 @@ class PageThree(wx.Panel):
                 self.status = self.status | (1<<i) 
             else:
                 self.output[i]=False
-        print "Status"
-        print "%X"%self.status
+
         frame.daq.set_port_dir(self.status)
         valueInput = frame.daq.set_port(self.values)
-        print "VAlues"
-        print "%X"%valueInput
+
         for i in range(6):
             if valueInput & (1<<i):
                 if self.output[i]==False:
@@ -567,18 +556,16 @@ class PageThree(wx.Panel):
         timerThread.stop()
     def OutputChange(self,event):
         button = event.GetEventObject()
-        indice=button.GetId()-100
-        if self.output[indice]:
-            if self.value[indice]:
-                self.value[indice]=False
+        index1=button.GetId()-100
+        if self.output[index1]:
+            if self.value[index1]:
+                self.value[index1]=False
                 button.SetBitmapLabel(self.imageSwOff)
-                self.values = self.values & ~(1<<indice)
+                self.values = self.values & ~(1<<index1)
             else:
-                self.value[indice]=True
+                self.value[index1]=True
                 button.SetBitmapLabel(self.imageSwOn) 
-                self.values = self.values | (1<<indice)    
-            print "VALUE"         
-            print "%X"%self.values
+                self.values = self.values | (1<<index1)    
         frame.daq.set_port(self.values)
 
 class PageFour(wx.Panel):
@@ -708,7 +695,6 @@ class PageFour(wx.Panel):
             self.duty = self.dutyEdit.GetValue()
             self.duty *= 1023
             self.duty /=100
-            print "Duty %d"%self.duty
             frame.daq.init_pwm(self.duty,self.period)
  
         else:
@@ -848,7 +834,6 @@ class MainFrame(wx.Frame):
         # create the page windows as children of the notebook
         self.page1 = PageOne(self.nb, info[0])
         self.page1.SetBackgroundColour('#ece9d8')
-        #self.page2 = PageTwo(self.nb)
         self.page3 = PageThree(self.nb)
         self.page3.SetBackgroundColour('#ece9d8')
         self.page4 = PageFour(self.nb)
@@ -857,7 +842,6 @@ class MainFrame(wx.Frame):
         
         # add the pages to the notebook with the label to show on the tab
         self.nb.AddPage(self.page1, "Analog I/O")
-        #self.nb.AddPage(self.page2, "Analog Output")
         self.nb.AddPage(self.page3, "Digital I/O")
         self.nb.AddPage(self.page4, "Timer-Counter")
         
@@ -910,12 +894,11 @@ class InitDlg(wx.Dialog):
         
         puertos_disponibles=scan(num_ports=255,verbose=False)
         self.sampleList = []
-        #-- Recorrer la lista mostrando los que se han podido abrir
         if len(puertos_disponibles)!=0:
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
         self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
         self.edithear.SetSelection(0)
   
         self.hsizer.Add(self.lblhear,wx.EXPAND)

@@ -57,6 +57,7 @@ class DAQ:
     
     def __init__(self, port):
         self.vHW = ""
+        self.name = ""
         self.port = port
         self.open()
                 
@@ -104,7 +105,6 @@ class DAQ:
         data = struct.unpack(fmt, check_crc(ret))
 
         if data[1] != ret_len-4:
-            print data[1],ret_len-4
             raise LengthError
 
         # strip 'command' and 'length' values from returned data
@@ -117,26 +117,28 @@ class DAQ:
         return self.vHW
 
     def read_adc(self):
-        return self.send_command('\x01\x00', 'h')[0]
+        value = self.send_command('\x01\x00', 'h')[0]
+        return value
     
     def read_analog(self):
         value = self.send_command('\x01\x00', 'h')[0]
-        print "valor en crudo", value
         #raw to voltage->
         
         if self.vHW == "m":
-            index = self.gain
+            index = self.gain+1
         if self.vHW == "s":
             index = self.input
 
         value*=self.gains[index]
             
         data=float(value)
+        #if device is [M] version, gain value is multiplied by -100k to reconstruct the float
         if self.vHW == "m":
-            data/=100000
+            data/=-100000
+        #if device is [S] version, gain value is multiplied by +10k to reconstruct the float    
         if self.vHW == "s":
             data/=10000
-            
+          
         data+=self.offset[index]
         value= float(data)
         value = value/1000
@@ -146,7 +148,7 @@ class DAQ:
         self.gain = gain
         self.input = pinput
         
-        if self.vHW == "s" and ninput != 0:#SD
+        if self.vHW == "s" and ninput != 0:
             if pinput == 1 or pinput == 2:
                 self.input = 9
             if pinput == 3 or pinput == 4:
@@ -154,9 +156,7 @@ class DAQ:
             if pinput == 5 or pinput == 6:
                 self.input = 11
             if pinput == 7 or pinput == 8:
-                self.input = 12
-                
-            
+                self.input = 12 
             
         cmd = struct.pack('BBBBBB', 2, 4, pinput, ninput, gain, nsamples)
         return self.send_command(cmd, 'hBBBB')
@@ -189,7 +189,7 @@ class DAQ:
                 data = 0
             if data > 32767:
                 data = 32767
-            
+                            
         cmd = struct.pack('>BBh', 24, 2, data)        
         return self.send_command(cmd, 'h')[0]
     
@@ -463,19 +463,7 @@ class DAQ:
         
     def set_gains_offsets(self, g, o):
         self.gains = g
-        self.offset = o
-    
-        
-''' 
-    def debug_sc(self, gain_id, gain, offset):
-        print "enviando set_calibration id", gain_id, "gain", gain, "offset", offset
-        cmd = struct.pack('>BBBHh', 37, 5, gain_id, gain, offset)
-        return self.send_command(cmd, 'BHh')
-    
-    def debug_gc(self, gain_id):
-        cmd = struct.pack('>BBB', 36, 1, gain_id)
-        return self.send_command(cmd, 'BHh')
-'''
+        self.offset = o    
 
 if __name__ == '__main__':
     import time, sys
@@ -493,11 +481,7 @@ if __name__ == '__main__':
     channel = []
     for i in xrange(40):
         daq.get_stream(data, channel)
-        print data
 
-    print data
     daq.flush()
     daq.stop()
-    #daq.conf_channel(channel, mode, pinput, ninput=0, gain=1, nsamples=1)
-    #daq.setup_channel(channel, npoints, continuous=True)
-    #daq.destroy_channel(channel):
+

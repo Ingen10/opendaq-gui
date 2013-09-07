@@ -134,6 +134,7 @@ class ComThread (threading.Thread):
         self.stopping=1
         self.delay=1
         self.threadSleep=1
+        
     def stopThread(self):
         self.running=0
     def restart(self):
@@ -159,7 +160,6 @@ class ComThread (threading.Thread):
             self.threadSleep=0
         else:
             self.threadSleep = float(self.threadSleep)/2000      
-        print "Time:",self.threadSleep
     def run(self):  
         self.running=1
         self.stopping=0
@@ -180,7 +180,6 @@ class ComThread (threading.Thread):
                     while 1:
                         ret = frame.daq.get_stream(self.data_packet,self.ch)
                         if ret == 0:
-                            print "Debug message:"+self.debug
                             break
                         if ret==2:
                             self.debug+=''.join(map(chr,self.data_packet))
@@ -189,7 +188,6 @@ class ComThread (threading.Thread):
                             #experiment stopped by Odaq
                             frame.stopChannel(self.ch[0])
                         if ret == 1:
-                            print "Debug message:"+self.debug
                             break
                     if ret != 1:
                         continue
@@ -202,18 +200,55 @@ class ComThread (threading.Thread):
 
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
-                    data_int*=-frame.gains[frame.p.range[self.ch[0]]]
+                    if frame.vHW == "s" and frame.p.ch2[self.ch[0]] != 0:
+                        multiplier_index = frame.p.range[self.ch[0]]  
+                        multiplier = 1
+                        if multiplier_index == 1:
+                            multiplier = 2
+                        if multiplier_index == 2:
+                            multiplier = 4                            
+                        if multiplier_index == 3:
+                            multiplier = 5                            
+                        if multiplier_index == 4:
+                            multiplier = 8
+                        if multiplier_index == 5:
+                            multiplier = 10
+                        if multiplier_index == 6:
+                            multiplier = 16
+                        if multiplier_index == 7:
+                            multiplier = 20
+                        data_int /= multiplier                        
+                                            
+                    if frame.vHW == "m":
+                        gain = -frame.gains[frame.p.range[self.ch[0]]+1]
+                        offset = frame.offset[frame.p.range[self.ch[0]]+1]
+                    if frame.vHW == "s":
+                        index1 = frame.p.ch1[self.ch[0]]
+                        index2 = frame.p.ch2[self.ch[0]]
+                        if index2 != 0:
+                            index1+=8
+                        gain = frame.gains[index1]
+                        offset = frame.offset[index1]
+                        
+                    data_int*= gain
                     data= float(data_int)
-                    data/=100000
-                    data+=frame.offset[frame.p.range[self.ch[0]]]
+                    if frame.vHW == "m":
+                        data/=100000
+                    if frame.vHW == "s":
+                        data/=10000
+                    data+= offset
                     self.delay = float(frame.p.rate[self.ch[0]])
                     self.delay/=1000
                     self.time = self.delay*len(self.x[self.ch[0]])
-                    if frame.p.externFlag[self.ch[0]] == 1:
-                        self.y[self.ch[0]].append(self.difTime)
-                    else:
-                        self.y[self.ch[0]].append(self.time)
-                    self.x[self.ch[0]].append(float(data))
+                    limit = 1000/frame.p.rate[self.ch[0]]                    
+                    if self.count>limit:                    
+                        if frame.p.externFlag[self.ch[0]] == 1:
+                            self.y[self.ch[0]].append(self.difTime)
+                        else:
+                            self.y[self.ch[0]].append(self.time)
+
+                        self.x[self.ch[0]].append(float(data))
+                        
             if self.stopping:
                 self.data_packet=[]
                 self.ch = []
@@ -227,11 +262,27 @@ class ComThread (threading.Thread):
                         time.sleep(0.2)
                         frame.daq.flush()
                         pass
-                print len(self.data_packet)
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
-                    data_int*=-frame.gains[frame.p.range[self.ch[i]]]
-                    data_int/=100000
+                    
+                    
+                    if frame.vHW == "m":
+                        gain = -frame.gains[frame.p.range[self.ch[i]]+1]
+                        offset = frame.offset[frame.p.range[self.ch[i]]+1]
+                    if frame.vHW == "s":
+                        index1 = frame.p.ch1[self.ch[i]]
+                        index2 = frame.p.ch2[self.ch[i]]
+                        if index2 != 0:
+                            index1+=8
+                        gain = frame.gains[index1]
+                        offset = frame.offset[index1]
+                                    
+                    data_int*= gain
+                        
+                    if frame.vHW == "m":
+                        data/=100000
+                    if frame.vHW == "s":
+                        data/=10000
                     data_int+=frame.offset[frame.p.range[self.ch[i]]]
                     self.delay = float(frame.p.rate[self.ch[i]])
                     self.delay/=1000
@@ -247,10 +298,8 @@ class ComThread (threading.Thread):
                 frame.p.axes.plot(comunicationThread.y[3],comunicationThread.x[3],color='k')
                 frame.p.canvas.draw()
                 frame.daq.flush()
-                print "TIME:",time.time()-t
                 for i in range(4):
                     if frame.p.enableCheck[i].GetValue():
-                        print "Destroying channel %d"%(i+1)
                         try:
                             frame.daq.destroy_channel(i+1)
                         except:
@@ -388,8 +437,6 @@ class StreamDialog(wx.Dialog):
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
             self.dirname = dlg.GetDirectory()
-            print self.filename
-            print self.dirname
              
             with open(self.dirname+"\\"+self.filename, 'rb') as csvfile:
                 reader = csv.reader(csvfile)
@@ -444,13 +491,13 @@ class StreamDialog(wx.Dialog):
             dlg.Destroy()   
             return 0       
        
-        if self.ton+1>=self.period:
+        if self.ton+1>=self.period and self.enable[1].IsChecked():
             dlg = wx.MessageDialog(self,"Time on can not be greater than period","Error!", wx.OK|wx.ICON_WARNING)
             dlg.ShowModal()
             dlg.Destroy()   
             return 0 
  
-        if self.tRise+1>=self.period:
+        if self.tRise+1>=self.period and self.enable[3].IsChecked():
             dlg = wx.MessageDialog(self,"Time rise can not be greater than period","Error!", wx.OK|wx.ICON_WARNING)
             dlg.ShowModal()
             dlg.Destroy()   
@@ -459,10 +506,10 @@ class StreamDialog(wx.Dialog):
         self.EndModal ( wx.ID_OK )
     def enableEvent(self,event):
         button = event.GetEventObject()
-        indice=button.GetId()-200
-        if(self.enable[indice].IsChecked()):
+        index1=button.GetId()-200
+        if(self.enable[index1].IsChecked()):
             for i in range(5):
-                if i!=indice:
+                if i!=index1:
                     self.enable[i].SetValue(0)
         if(self.enable[4].IsChecked()):
             self.amplitudeEdit.Enable(False)
@@ -471,10 +518,9 @@ class StreamDialog(wx.Dialog):
 
 
 class ConfigDialog ( wx.Dialog ):
-    def __init__ ( self, parent, indice ):
+    def __init__ ( self, parent, index1 ):
         # Call wxDialog's __init__ method
         wx.Dialog.__init__ ( self, parent, -1, 'Config', size = ( 200, 200 ) )
-        
         dataSizer = wx.GridBagSizer(hgap=5, vgap=5)
         mainLayout = wx.BoxSizer(wx.HORIZONTAL)
             
@@ -489,22 +535,29 @@ class ConfigDialog ( wx.Dialog ):
         self.sampleList.append("A8")
         self.lblch1=wx.StaticText(self, label="Ch+")
         dataSizer.Add(self.lblch1,pos=(0,0))
-        self.editch1=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
-        selection = frame.p.ch1[indice] -1
+        self.editch1=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
+        selection = frame.p.ch1[index1] -1
         self.editch1.SetSelection(selection)
         dataSizer.Add(self.editch1,pos=(0,1))
+        self.Bind(wx.EVT_COMBOBOX, self.editch1Change,self.editch1)        
         
         self.sampleList = []
-        self.sampleList.append("AGND")
-        self.sampleList.append("VREF")
-        self.sampleList.append("A5")
-        self.sampleList.append("A6")
-        self.sampleList.append("A7")
-        self.sampleList.append("A8")
+        if frame.vHW == "m":
+            self.sampleList.append("AGND")
+            self.sampleList.append("VREF")
+            self.sampleList.append("A5")
+            self.sampleList.append("A6")
+            self.sampleList.append("A7")
+            self.sampleList.append("A8")
+        if frame.vHW == "s":
+            self.sampleList.append("AGND")
+            self.sampleList.append("A2")            
+            
         self.lblch2=wx.StaticText(self, label="Ch-")
         dataSizer.Add(self.lblch2,pos=(1,0))
-        self.editch2=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
-        selection = frame.p.ch2[indice]
+        self.editch2=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
+        self.Bind(wx.EVT_COMBOBOX, self.editch2Change,self.editch2)
+        selection = frame.p.ch2[index1]
         if selection == 25:
             selection=1
         else:
@@ -513,22 +566,39 @@ class ConfigDialog ( wx.Dialog ):
         self.editch2.SetSelection(selection)
         dataSizer.Add(self.editch2,pos=(1,1))
         self.sampleList = []
-        self.sampleList.append("+-12 V")
-        self.sampleList.append("+-4 V")    
-        self.sampleList.append("+-2 V")   
-        self.sampleList.append("+-0.4 V")
-        self.sampleList.append("+-0.04 V")        
-        self.lblrange=wx.StaticText(self, label="Range")
-        dataSizer.Add(self.lblrange,pos=(2,0))
-        self.editrange=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
-        self.editrange.SetSelection(frame.p.range[indice])
+        
+        if frame.vHW == "m":
+            self.sampleList.append("+-12 V")
+            self.sampleList.append("+-4 V")    
+            self.sampleList.append("+-2 V")   
+            self.sampleList.append("+-0.4 V")
+            self.sampleList.append("+-0.04 V")        
+            self.lblrange=wx.StaticText(self, label="Range")
+        if frame.vHW == "s":
+            self.sampleList.append("x1")
+            self.sampleList.append("x2")    
+            self.sampleList.append("x4")   
+            self.sampleList.append("x5")
+            self.sampleList.append("x8")       
+            self.sampleList.append("x10")       
+            self.sampleList.append("x16")       
+            self.sampleList.append("x20")       
+            self.lblrange=wx.StaticText(self, label="Multiplier")            
+                        
+        dataSizer.Add(self.lblrange,pos=(2,0))                            
+        self.editrange=wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
+        self.editrange.SetSelection(frame.p.range[index1])
         dataSizer.Add(self.editrange,pos=(2,1))
         
-
+        if frame.vHW == "s":
+            self.editrange.SetValue("x1")
+            self.editrange.Enable(False)
+            self.lblrange.Enable(False)
+        
         self.lblrate=wx.StaticText(self, label="Rate(ms)")
         dataSizer.Add(self.lblrate,pos=(0,3))    
         self.editrate=wx.TextCtrl(self,style=wx.TE_CENTRE)
-        self.editrate.AppendText(str(frame.p.rate[indice]))
+        self.editrate.AppendText(str(frame.p.rate[index1]))
         dataSizer.Add(self.editrate,pos=(0,4))
         
         self.enableExtern = wx.CheckBox(self,label="Enable extern")
@@ -539,7 +609,7 @@ class ConfigDialog ( wx.Dialog ):
         self.lblsamples = wx.StaticText(self, label="Samples per point")
         dataSizer.Add(self.lblsamples,pos=(1,3)) 
         self.editsamples = wx.TextCtrl(self,style=wx.TE_CENTRE)
-        self.editsamples.AppendText(str(frame.p.samples[indice]))
+        self.editsamples.AppendText(str(frame.p.samples[index1]))
         dataSizer.Add(self.editsamples,pos=(1,4))
         
         self.sampleList = []
@@ -549,8 +619,8 @@ class ConfigDialog ( wx.Dialog ):
         self.sampleList.append("Single run: 100")     
         self.lblmode = wx.StaticText(self, label="Mode")
         dataSizer.Add(self.lblmode,pos=(2,3))
-        self.editmode = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
-        self.editmode.SetSelection(frame.p.mode[indice])
+        self.editmode = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
+        self.editmode.SetSelection(frame.p.mode[index1])
         dataSizer.Add(self.editmode,pos=(2,4))    
         
         self.okButton = wx.Button(self,label="Confirm")
@@ -560,6 +630,8 @@ class ConfigDialog ( wx.Dialog ):
         mainLayout.Add(dataSizer,1, wx.EXPAND | wx.ALL, 20)
         
         self.SetSizerAndFit(mainLayout)
+        
+        self.editch1Change(0)
         
     def externModeEvent(self,event):
         if self.enableExtern.GetValue()==  True:
@@ -595,6 +667,50 @@ class ConfigDialog ( wx.Dialog ):
             return 0
         self.EndModal ( wx.ID_OK )
         
+    def editch2Change(self, event):
+        if frame.vHW == "m":
+	    return	
+        
+        value = self.editch2.GetValue()	
+        if value == "AGND":
+            self.editrange.SetValue("x1")
+            self.editrange.Enable(False)
+            self.lblrange.Enable(False)
+        else:
+            self.editrange.Enable(True)
+            self.lblrange.Enable(True)                    
+        
+    def editch1Change(self, event):
+        if frame.vHW == "m":
+            return		
+	
+        value = self.editch1.GetValue()	
+        self.editch2.Clear()
+
+        self.editch2.Append("AGND")
+
+        if value == "A1":
+            self.editch2.Append("A2")
+        elif value == "A2":
+            self.editch2.Append("A1")
+        elif value == "A3":
+            self.editch2.Append("A4")
+        elif value == "A4":
+            self.editch2.Append("A3")
+        elif value == "A5":
+            self.editch2.Append("A6")
+        elif value == "A6":
+            self.editch2.Append("A5")
+        elif value == "A7":
+            self.editch2.Append("A8")
+        elif value == "A8":
+            self.editch2.Append("A7")
+
+        self.editch2.SetSelection(0)
+        self.editrange.SetSelection(0)
+        self.editrange.Enable(False)
+        self.lblrange.Enable(False)
+                
         
 class MyCustomToolbar(NavigationToolbar2Wx): 
     ON_CUSTOM_LEFT  = wx.NewId()
@@ -615,12 +731,17 @@ class InterfazPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         
+        self.frame = parent
+                
         self.enableCheck=[]
         
         '''configuration save'''
         self.ch1=[1,1,1,1]
         self.ch2=[0,0,0,0]
-        self.range=[1,1,1,1]
+        if self.frame.vHW == "m":
+            self.range=[1,1,1,1]
+        if self.frame.vHW == "s":
+            self.range=[0,0,0,0] 
         self.rate=[100,100,100,100]
         self.samples=[20,20,20,20]
         self.mode=[0,0,0,0]
@@ -772,8 +893,6 @@ class InterfazPanel(wx.Panel):
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
             self.dirname = dlg.GetDirectory()
-            print self.filename
-            print self.dirname
             self.figure.savefig(self.dirname+"\\"+self.filename)
         dlg.Destroy()   
         
@@ -783,9 +902,7 @@ class InterfazPanel(wx.Panel):
         dlg = wx.FileDialog(self, "Choose a file",self.dirname,"", "*.odq",wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            print self.filename
-            print self.dirname 
+            self.dirname = dlg.GetDirectory() 
             for j in range(4):
                 if self.enableCheck[j].IsChecked():
                     with open(self.dirname+"\\"+str(j)+self.filename, 'wb') as csvfile:
@@ -799,11 +916,9 @@ class InterfazPanel(wx.Panel):
         dlg = StreamDialog(self)
         if dlg.ShowModal()==wx.ID_OK:
             self.burstModeStreamOut=dlg.burstModeFlag
-            print "Burst mode",self.burstModeStreamOut
             if dlg.csvFlag:
                 self.buffer=dlg.csvBuffer[:140]
                 self.interval=int(dlg.period/(len(self.buffer)))
-                print "CSV interval",self.interval
             else:
                 self.periodStreamOut=dlg.period;
                 self.amplitudeStreamOut=dlg.amplitude
@@ -832,37 +947,37 @@ class InterfazPanel(wx.Panel):
     def configureEvent(self,event):
         wx.SetCursor(wx.StockCursor(wx.CURSOR_HAND))
         button = event.GetEventObject()
-        indice=button.GetId()-100
-
-        dlg = ConfigDialog(self,indice)
+        index1=button.GetId()-100        
+        
+        dlg = ConfigDialog(self,index1)
         if dlg.ShowModal()==wx.ID_OK:
 
-            self.ch1[indice] = dlg.editch1.GetCurrentSelection()
-            self.ch2[indice] = dlg.editch2.GetCurrentSelection()
-            self.range[indice] = dlg.editrange.GetCurrentSelection()
+            self.ch1[index1] = dlg.editch1.GetCurrentSelection()
+            self.ch2[index1] = dlg.editch2.GetCurrentSelection()
+            self.range[index1] = dlg.editrange.GetCurrentSelection()
     
-            self.ch1[indice]+=1
-            if self.ch2[indice]==1:
-                self.ch2[indice]=25
-            elif self.ch2[indice]>1:
-                self.ch2[indice]+=3
+            self.ch1[index1]+=1
+            if self.ch2[index1]==1:
+                self.ch2[index1]=25
+            elif self.ch2[index1]>1:
+                self.ch2[index1]+=3
             
             if dlg.enableExtern.GetValue()==  True:
-                self.rate[indice] = int(dlg.editrate.GetLineText(0))
-                self.externFlag[indice] = 1
+                self.rate[index1] = int(dlg.editrate.GetLineText(0))
+                self.externFlag[index1] = 1
             else:
-                self.rate[indice] = int(dlg.editrate.GetLineText(0))
-                self.externFlag[indice] = 0
+                self.rate[index1] = int(dlg.editrate.GetLineText(0))
+                self.externFlag[index1] = 0
             
-            self.samples[indice] = int(dlg.editsamples.GetLineText(0))
+            self.samples[index1] = int(dlg.editsamples.GetLineText(0))
             
-            self.mode[indice] = dlg.editmode.GetCurrentSelection()
-            if self.mode[indice] == 0:
-                self.npoint[indice] = 0
-                self.mode[indice] = 0
+            self.mode[index1] = dlg.editmode.GetCurrentSelection()
+            if self.mode[index1] == 0:
+                self.npoint[index1] = 0
+                self.mode[index1] = 0
             else:
-                self.npoint[indice] = 20*self.mode[indice]
-                self.mode[indice] = 1
+                self.npoint[index1] = 20*self.mode[index1]
+                self.mode[index1] = 1
             
             dlg.Destroy()
     def PlayEvent(self,event):
@@ -886,7 +1001,6 @@ class InterfazPanel(wx.Panel):
                 frame.daq.conf_channel(i+1, 0, self.ch1[i], self.ch2[i], self.range[i],self.samples[i]) #analog input
                    
         if self.enableCheck[4].GetValue():
-            print "interval",self.interval
             if self.burstModeStreamOut:
                 frame.daq.burst_create(self.interval*100)
                 frame.daq.setup_channel(1,len(self.buffer),0) #mode continuous
@@ -1016,6 +1130,8 @@ class MainFrame(wx.Frame):
         
         self.daq = DAQ(commPort)
         
+        self.vHW = self.daq.get_vHW()  
+        
         icon =wx.Icon("./icon64.ico",wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         
@@ -1065,7 +1181,6 @@ class MainFrame(wx.Frame):
         dlg.Destroy() 
         
     def stopChannel(self,number):
-        print "Stopping ch",number
         self.channelState[number]=0
         
         suma=0
@@ -1090,12 +1205,11 @@ class InitDlg(wx.Dialog):
         
         puertos_disponibles=scan(num_ports=255,verbose=False)
         self.sampleList = []
-        #-- Recorrer la lista mostrando los que se han podido abrir
         if len(puertos_disponibles)!=0:
             for n,nombre in puertos_disponibles:
                 self.sampleList.append(nombre)
         self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_DROPDOWN)
+        self.edithear = wx.ComboBox(self, size=(95,-1),choices=self.sampleList, style=wx.CB_READONLY)
         self.edithear.SetSelection(0)
   
         self.hsizer.Add(self.lblhear,wx.EXPAND)
@@ -1103,6 +1217,9 @@ class InitDlg(wx.Dialog):
 
         self.buttonOk = wx.Button(self,label="OK")
         self.Bind(wx.EVT_BUTTON,self.okEvent,self.buttonOk)
+        
+        self.buttonCancel = wx.Button(self,label="Cancel", pos=(115, 22))
+        self.Bind(wx.EVT_BUTTON,self.cancelEvent,self.buttonCancel)
         
         self.vsizer.Add(self.hsizer,wx.EXPAND)
         self.vsizer.Add(self.buttonOk,wx.EXPAND)
@@ -1118,6 +1235,7 @@ class InitDlg(wx.Dialog):
         if portN>=0:
             self.buttonOk.Show(False)
             self.edithear.Show(False)
+            self.buttonCancel.Show(False)
             self.gauge.Show()
             daq = DAQ(self.sampleList[portN])
             try:
@@ -1137,6 +1255,10 @@ class InitDlg(wx.Dialog):
             dlg = wx.MessageDialog(self,"Not a valid port","Retry", wx.OK | wx.ICON_QUESTION)
             dlg.ShowModal()
             dlg.Destroy()
+            
+    def cancelEvent(self, event):
+	self.port=0
+	self.EndModal(0)
             
 class MyApp(wx.App):
     def OnInit(self):
