@@ -388,6 +388,8 @@ class AdcPage(wx.Panel):
             
         frame.daq.set_cal(self.slope,self.intercept, self.flag)
         
+        frame.daq.get_cal()
+        
     def exportEvent(self, event):        
         dlg = wx.TextEntryDialog(self, 'openDAQ ID:', 'ID', style=wx.OK|wx.CANCEL)
         res = dlg.ShowModal()

@@ -99,11 +99,12 @@ class DAQ:
                 print '%02X' % ord(c),
             print
 
-        if len(ret) != ret_len:
+
+        if len(ret) != ret_len:            
             raise LengthError
 
         data = struct.unpack(fmt, check_crc(ret))
-
+        
         if data[1] != ret_len-4:
             raise LengthError
 
@@ -132,10 +133,8 @@ class DAQ:
         value*=self.gains[index]
             
         data=float(value)
-        #if device is [M] version, gain value is multiplied by -100k to reconstruct the float
         if self.vHW == "m":
             data/=-100000
-        #if device is [S] version, gain value is multiplied by +10k to reconstruct the float    
         if self.vHW == "s":
             data/=10000
           
@@ -156,7 +155,9 @@ class DAQ:
             if pinput == 5 or pinput == 6:
                 self.input = 11
             if pinput == 7 or pinput == 8:
-                self.input = 12 
+                self.input = 12
+                
+            
             
         cmd = struct.pack('BBBBBB', 2, 4, pinput, ninput, gain, nsamples)
         return self.send_command(cmd, 'hBBBB')
@@ -191,6 +192,7 @@ class DAQ:
                 data = 32767
                             
         cmd = struct.pack('>BBh', 24, 2, data)        
+        
         return self.send_command(cmd, 'h')[0]
     
     def set_dac(self, raw):
@@ -271,7 +273,7 @@ class DAQ:
             ran = 17
         
         for i in range(ran):            
-            gain_id, gain, offset = self.__get_calibration(i)            
+            gain_id, gain, offset = self.__get_calibration(i) 
             gains.append(gain)
             offsets.append(offset)
 
@@ -464,6 +466,10 @@ class DAQ:
     def set_gains_offsets(self, g, o):
         self.gains = g
         self.offset = o    
+        
+    def set_id(self, id):            
+        cmd = struct.pack('>BBI', 39, 4, id)                        
+        return self.send_command(cmd, 'bbI')
 
 if __name__ == '__main__':
     import time, sys

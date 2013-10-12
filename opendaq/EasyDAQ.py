@@ -4,6 +4,8 @@ Created on 01/03/2012
 @author: Adrian
 '''
 
+
+
 import os
 import sys
 import wx
@@ -253,14 +255,18 @@ class ComThread (threading.Thread):
                 self.data_packet=[]
                 self.ch = []
                 frame.daq.flush()
+                self.stopping = 0
                 while True:
                     try:
                         frame.daq.stop()
                         break
                     except:
-                        print "Error trying to stop. Retrying"
+                        if self.stopping > 1:
+                            frame.p.stoppingLabel.SetLabel("Stopping... Please, wait")
+                        print "Error trying to stop. Retrying"                                            
+                        self.stopping+=1
                         time.sleep(0.2)
-                        frame.daq.flush()
+                        frame.daq.flush()                        
                         pass
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
@@ -304,7 +310,11 @@ class ComThread (threading.Thread):
                             frame.daq.destroy_channel(i+1)
                         except:
                             frame.daq.flush()
-                            print "Error trying to destroy channel"
+                            print "Error trying to destroy channel"                            
+                            frame.daq.close()
+                            frame.daq.open()
+                            
+                frame.p.stoppingLabel.SetLabel("")                                        
                 self.stopping=0
                 frame.p.buttonPlay.Enable(True)
                 
@@ -332,7 +342,7 @@ class StreamDialog(wx.Dialog):
         self.amplitudeEdit=FloatSpin(self,value=frame.p.amplitudeStreamOut/1000,min_val=0.001,max_val=4.0,increment=0.1,digits=3)
         
         #sine
-        box = wx.StaticBox(self, -1, 'Sine', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Sine')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[0], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -340,7 +350,7 @@ class StreamDialog(wx.Dialog):
         self.datagraphSizer[0].Add(dataSizer[0],0,wx.ALL)
         
         #Square
-        box = wx.StaticBox(self, -1, 'Square', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Square')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[1], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -351,7 +361,7 @@ class StreamDialog(wx.Dialog):
         self.datagraphSizer[1].Add(dataSizer[1],0,wx.ALL)
     
         #SawTooth
-        box = wx.StaticBox(self, -1, 'Sawtooth', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Sawtooth')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[2], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -359,7 +369,7 @@ class StreamDialog(wx.Dialog):
         self.datagraphSizer[2].Add(dataSizer[2],0,wx.ALL)
 
         #Triangle
-        box = wx.StaticBox(self, -1, 'Triangle', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Triangle')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[3], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -370,7 +380,7 @@ class StreamDialog(wx.Dialog):
         self.datagraphSizer[3].Add(dataSizer[3],0,wx.ALL)
         
         #Fixed potential
-        box = wx.StaticBox(self, -1, 'Fixed potential', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Fixed potential')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -771,7 +781,7 @@ class InterfazPanel(wx.Panel):
         hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
         
         for i in range(4):
-            box = wx.StaticBox(self, -1, 'Experiment %d'%(i+1), size=(240, 140))
+            box = wx.StaticBox(self, -1, 'Experiment %d'%(i+1))
             self.dataLbl.append(box)
             self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[i], wx.HORIZONTAL))
             dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -797,7 +807,7 @@ class InterfazPanel(wx.Panel):
             datasSizer.Add(self.datagraphSizer[i],0,wx.ALL,border=10)
             
         #stream out panel
-        box = wx.StaticBox(self, -1, 'Waveform generator', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Waveform generator')
         self.dataLbl.append(box)
         self.datagraphSizer.append(wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
         dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
@@ -815,7 +825,7 @@ class InterfazPanel(wx.Panel):
         datasSizer.Add(self.datagraphSizer[4],0,wx.ALL,border=10)
         
         #export
-        box = wx.StaticBox(self, -1, 'Export graphics', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Export graphics')
         self.exportLbl = box
         self.exportSizer=wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)   
         
@@ -834,13 +844,14 @@ class InterfazPanel(wx.Panel):
         self.buttonStop = wx.Button(self, label="Stop")
         self.Bind(wx.EVT_BUTTON, self.StopEvent,self.buttonStop)
         self.buttonStop.Enable(False)
+        self.stoppingLabel = wx.StaticText(self,label="")
         
         datasSizer.Add(self.exportSizer,0,wx.ALL,border=10)
         
         graphSizer.Add(datasSizer,0,wx.ALL)
         graphSizer.Add(self.buttonPlay,0,wx.CENTRE,border=5)
         graphSizer.Add(self.buttonStop,0,wx.CENTRE,border=5)    
-        
+        graphSizer.Add(self.stoppingLabel,0,wx.CENTRE, border=5) 
         self.figure = Figure(facecolor='#ece9d8')
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self, -1, self.figure)
@@ -980,7 +991,7 @@ class InterfazPanel(wx.Panel):
                 self.mode[index1] = 1
             
             dlg.Destroy()
-    def PlayEvent(self,event):
+    def PlayEvent(self,event):        
         self.channel = []
         for i in range(4):
             if self.enableCheck[i].GetValue():                
@@ -993,7 +1004,7 @@ class InterfazPanel(wx.Panel):
                     self.mode[i]=1
                 
                 if self.externFlag[i]==1:
-                    frame.daq.external_create(i+1,0)
+                    frame.daq.create_external(i+1,0)
                 else:
                     frame.daq.create_stream(i+1, self.rate[i])
                     
@@ -1002,7 +1013,7 @@ class InterfazPanel(wx.Panel):
                    
         if self.enableCheck[4].GetValue():
             if self.burstModeStreamOut:
-                frame.daq.burst_create(self.interval*100)
+                frame.daq.create_burst(self.interval*100)
                 frame.daq.setup_channel(1,len(self.buffer),0) #mode continuous
                 frame.daq.conf_channel(1, 1,0,0,0,0) #analog output
             else:
@@ -1044,9 +1055,7 @@ class InterfazPanel(wx.Panel):
             self.t = np.arange(0, self.periodStreamOut,self.interval)
             self.buffer= np.sin(2*np.pi/self.periodStreamOut*self.t)*self.amplitudeStreamOut
             for i in range(len(self.buffer)):
-                self.buffer[i]=self.buffer[i]+self.offsetStreamOut
-                
-
+                self.buffer[i]=self.buffer[i]+self.offsetStreamOut                
             
         if self.signalStreamOut==1:
             #square
@@ -1119,8 +1128,23 @@ class InterfazPanel(wx.Panel):
         #calibration
         for i in range(len(self.buffer)):
             dacValue = self.buffer[i]
-            self.buffer[i] = dacValue
-        
+            info = self.frame.daq.get_info()
+            if info[1] < 110:
+                self.buffer[i] = dacValue
+            else:            
+                value = int(round(dacValue))        
+                if not -4096 <= value < 4096:
+                    raise ValueError('DAQ voltage out of range')
+
+                value*=frame.daq.dacGain
+                data= float(value)
+                data/=1000
+                data+=frame.daq.dacOffset
+                data+=4096
+                data*=2               
+
+                self.buffer[i] = data
+                    
         if len(self.buffer)>=140:
             self.buffer=self.buffer[:140]
             
@@ -1138,7 +1162,21 @@ class MainFrame(wx.Frame):
         self.statusBar = self.CreateStatusBar()
         self.statusBar.SetFieldsCount(2)
         info = self.daq.get_info()
-        self.statusBar.SetStatusText("H:%dF:%d"%(info[0],info[1]),0)
+        
+        vHW = "?"
+	if info[0] == 1:
+	    vHW = "[M]"
+	else:
+	    if info[0] == 2:
+		vHW = "[S]"
+                
+        vFW = info[1]
+        v1 = vFW / 100
+        v2 = (vFW/10) % 10
+        v3 = vFW % 10
+        vFW = str(v1) + "." + str(v2) + "." + str(v3)
+	    
+        self.statusBar.SetStatusText("H:%s V:%s"%(vHW,vFW),0)
         
         self.channelState=[0,0,0,0]
         

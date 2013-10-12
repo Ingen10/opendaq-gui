@@ -4,6 +4,8 @@ Created on 01/03/2012
 @author: Adrian
 '''
 
+
+
 import os
 import sys
 import wx
@@ -156,21 +158,24 @@ class TimerThread (threading.Thread):
             if self.counterFlag:
                 frame.page4.get_counter.Clear()
                 cnt= frame.daq.get_counter(0)
-                frame.page4.get_counter.AppendText(str(cnt))
+                frame.page4.get_counter.AppendText(str(cnt))                
             if self.captureFlag:
                 frame.page4.get_capture.Clear()
                 selection = frame.page4.rb.GetSelection()
-                cnt,mode= frame.daq.get_capture(selection)
+                mode,cnt= frame.daq.get_capture(selection)
                 frame.page4.get_capture.AppendText(str(cnt))
             if self.encoderFlag:
                 cnt = frame.daq.get_encoder()
                 frame.page4.currentPosition.Clear()
                 frame.page4.currentPosition.AppendText(str(cnt[0]))
+                print "cnt =", cnt
                 if frame.page4.encoderResolution !=0:
                     cnt=cnt[0]
                     cnt*=100
-                    cnt = cnt / frame.page4.encoderResolution
+                    cnt = cnt / frame.page4.encoderResolution                    
                     frame.page4.gauge.SetValue(pos=cnt)
+                else:
+                    frame.page4.gauge.SetValue(0)
   
 class MyCustomToolbar(NavigationToolbar2Wx): 
     ON_CUSTOM_LEFT  = wx.NewId()
@@ -197,7 +202,7 @@ class PageOne(wx.Panel):
         hSizer = wx.BoxSizer(wx.VERTICAL)
         plotSizer = wx.BoxSizer(wx.VERTICAL)
 
-        box = wx.StaticBox(self, -1, 'Analog input', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Analog input')
         self.inputLbl = box
         self.inputSizer=wx.StaticBoxSizer(self.inputLbl, wx.HORIZONTAL)    
 
@@ -288,7 +293,7 @@ class PageOne(wx.Panel):
         
         self.inputSizer.Add(grid,0,wx.ALL,border=10)
         
-        box = wx.StaticBox(self, -1, 'Analog output', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Analog output')
         self.outputLbl = box
         self.outputSizer=wx.StaticBoxSizer(self.outputLbl, wx.HORIZONTAL)   
         
@@ -302,7 +307,7 @@ class PageOne(wx.Panel):
         
         self.outputSizer.Add(grid2,0,wx.ALL,border=10)
         
-        box = wx.StaticBox(self, -1, 'Export', size=(240, 140))
+        box = wx.StaticBox(self, -1, 'Export')
         self.exportLbl = box
         self.exportSizer=wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)   
         
@@ -572,13 +577,13 @@ class PageFour(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         
-        self.pwmLbl = wx.StaticBox(self, -1, 'PWM:', size=(240, 140))
+        self.pwmLbl = wx.StaticBox(self, -1, 'PWM:')
         self.pwmgraphSizer = wx.StaticBoxSizer(self.pwmLbl, wx.VERTICAL)
         
-        self.captureLbl = wx.StaticBox(self, -1, 'Capture:', size=(240, 140))
+        self.captureLbl = wx.StaticBox(self, -1, 'Capture:')
         self.capturegraphSizer = wx.StaticBoxSizer(self.captureLbl, wx.VERTICAL)
         
-        self.counterLbl = wx.StaticBox(self, -1, 'Counter:', size=(240, 140))
+        self.counterLbl = wx.StaticBox(self, -1, 'Counter:')
         self.countergraphSizer = wx.StaticBoxSizer(self.counterLbl, wx.VERTICAL)
         
         self.encoderLbl = wx.StaticBox(self,-1,'Encoder',size=(240,140))
@@ -824,8 +829,14 @@ class MainFrame(wx.Frame):
 	else:
 	    if info[0] == 2:
 		vHW = "[S]"
+                
+        vFW = info[1]
+        v1 = vFW / 100
+        v2 = (vFW/10) % 10
+        v3 = vFW % 10
+        vFW = str(v1) + "." + str(v2) + "." + str(v3)
 	    
-        self.statusBar.SetStatusText("H:%s V:%d"%(vHW,info[1]),0)
+        self.statusBar.SetStatusText("H:%s V:%s"%(vHW,vFW),0)
         
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
