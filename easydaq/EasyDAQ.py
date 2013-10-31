@@ -454,6 +454,28 @@ class StreamDialog(wx.Dialog):
                 for index,row in enumerate(reader):
                     for i in range(len(row)):
                         self.csvBuffer.append(int(row[i]))
+
+        #calibration
+        for i in range(len(self.csvBuffer)):
+            value = int(round(self.csvBuffer[i]))
+            if not -4096 <= value < 4096:
+                raise ValueError('DAQ voltage out of range')
+
+            value*=frame.daq.dacGain
+            if frame.vHW == "s":
+                value *= 2
+            data= float(value)
+            data/=1000
+            data+=frame.daq.dacOffset
+            data+=4096
+            data*=2
+            
+            if frame.vHW == "s" and data < 0:
+                data = 0
+
+            self.csvBuffer[i] = data
+
+
         dlg.Destroy()       
         self.csvFlag=1
         for i in range(4):
@@ -1137,11 +1159,16 @@ class InterfazPanel(wx.Panel):
                     raise ValueError('DAQ voltage out of range')
 
                 value*=frame.daq.dacGain
+                if self.frame.vHW == "s":
+                    value *= 2
                 data= float(value)
                 data/=1000
                 data+=frame.daq.dacOffset
                 data+=4096
-                data*=2               
+                data*=2
+
+                if self.frame.vHW == "s" and data < 0:
+                    data = 0
 
                 self.buffer[i] = data
                     
