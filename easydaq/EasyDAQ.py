@@ -451,9 +451,14 @@ class StreamDialog(wx.Dialog):
             with open(self.dirname+"\\"+self.filename, 'rb') as csvfile:
                 reader = csv.reader(csvfile)
                 self.csvBuffer=[]
-                for index,row in enumerate(reader):
-                    for i in range(len(row)):
-                        self.csvBuffer.append(int(row[i]))
+                try:
+                    for index,row in enumerate(reader):
+                        for i in range(len(row)):
+                            self.csvBuffer.append(int(row[i]))
+                except:
+                    dlg = wx.MessageDialog(self,"Error importing CSV","Error", wx.OK | wx.ICON_ERROR)
+                    dlg.ShowModal()
+                    dlg.Destroy()
 
         #calibration
         for i in range(len(self.csvBuffer)):
