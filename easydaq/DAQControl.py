@@ -1,8 +1,22 @@
-'''
-Created on 01/03/2012
+#!/usr/bin/env python
 
-@author: Adrian
-'''
+# Copyright 2012
+# Adrian Alvarez <alvarez@ingen10.com> and Juan Menendez <juanmb@ingen10.com>
+#
+# This file is part of opendaq.
+#
+# opendaq is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# opendaq is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 import wx
@@ -68,18 +82,15 @@ def scan(num_ports=20, verbose=True):
 class ComThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-        self.running = 1
-        self.runningThread = 1
+        self.running = self.runningThread = 1
         self.x = []
         self.y = []
         self.data_packet = []
         self.delay = 0.001
 
     def config(self, ch1, ch2, rangeV, rate):
-        ch1 += 1
-        frame.daq.conf_adc(ch1, ch2, rangeV, 20)
-        self.delay = float(rate)
-        self.delay /= 1000
+        frame.daq.conf_adc(ch1+1, ch2, rangeV, 20)
+        self.delay = rate / 1000.0
 
     def stop(self):
         self.running = 0
@@ -108,7 +119,7 @@ class ComThread (threading.Thread):
                 frame.page1.inputValue.AppendText(str(data))
                 self.data_packet.append(data)
                 self.x.append(float(data))
-                self.y.append(float((len(self.x)-1)*self.delay))
+                self.y.append(float((len(self.x)-1) * self.delay))
                 if(frame.page1.toolbar.mode == "pan/zoom"):
                     continue
                 if(frame.page1.toolbar.mode == "zoom rect"):
@@ -127,28 +138,21 @@ class TimerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.running = 1
         self.delay = 0.25
-        self.counterFlag = 0
-        self.captureFlag = 0
-        self.encoderFlag = 0
+        self.counterFlag = self.captureFlag = self.encoderFlag = 0
 
     def stop(self):
-        self.counterFlag = 0
-        self.captureFlag = 0
-        self.encoderFlag = 0
+        self.counterFlag = self.captureFlag = self.encoderFlag = 0
 
     def startCounter(self):
         self.counterFlag = 1
-        self.captureFlag = 0
-        self.encoderFlag = 0
+        self.captureFlag = self.encoderFlag = 0
 
     def startCapture(self):
-        self.counterFlag = 0
+        self.counterFlag = self.encoderFlag = 0
         self.captureFlag = 1
-        self.encoderFlag = 0
 
     def startEncoder(self):
-        self.counterFlag = 0
-        self.captureFlag = 0
+        self.counterFlag = self.captureFlag = 0
         self.encoderFlag = 1
 
     def stopThread(self):
@@ -164,18 +168,15 @@ class TimerThread (threading.Thread):
                 frame.page4.get_counter.AppendText(str(cnt))
             if self.captureFlag:
                 frame.page4.get_capture.Clear()
-                selection = frame.page4.rb.GetSelection()
-                mode, cnt = frame.daq.get_capture(selection)
+                mode, cnt = (
+                    frame.daq.get_capture(frame.page4.rb.GetSelection()))
                 frame.page4.get_capture.AppendText(str(cnt))
             if self.encoderFlag:
                 cnt = frame.daq.get_encoder()
                 frame.page4.currentPosition.Clear()
                 frame.page4.currentPosition.AppendText(str(cnt[0]))
-                print "cnt =", cnt
                 if frame.page4.encoderResolution != 0:
-                    cnt = cnt[0]
-                    cnt *= 100
-                    cnt = cnt / frame.page4.encoderResolution
+                    cnt = cnt[0] * 100 / frame.page4.encoderResolution
                     frame.page4.gauge.SetValue(pos=cnt)
                 else:
                     frame.page4.gauge.SetValue(0)
@@ -189,10 +190,9 @@ class MyCustomToolbar(NavigationToolbar2Wx):
         # create the default toolbar
         NavigationToolbar2Wx.__init__(self, plotCanvas)
         # remove the unwanted button
-        self.DeleteToolByPos(8)
-        self.DeleteToolByPos(7)
-        self.DeleteToolByPos(2)
-        self.DeleteToolByPos(1)
+        delete_array = (8, 7, 2, 1)
+        for i in delete_array:
+            self.DeleteToolByPos(i)
 
 
 class PageOne(wx.Panel):
@@ -205,8 +205,7 @@ class PageOne(wx.Panel):
         hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
         hSizer = wx.BoxSizer(wx.VERTICAL)
         plotSizer = wx.BoxSizer(wx.VERTICAL)
-        box = wx.StaticBox(self, -1, 'Analog input')
-        self.inputLbl = box
+        self.inputLbl = wx.StaticBox(self, -1, 'Analog input')
         self.inputSizer = wx.StaticBoxSizer(self.inputLbl, wx.HORIZONTAL)
         self.sampleList = []
         for i in range(1, 9):
@@ -262,8 +261,7 @@ class PageOne(wx.Panel):
             self, style=wx.TE_READONLY, size=(95, 25))
         grid.Add(self.inputValue, pos=(5, 1))
         self.inputSizer.Add(grid, 0, wx.ALL, border=10)
-        box = wx.StaticBox(self, -1, 'Analog output')
-        self.outputLbl = box
+        self.outputLbl = wx.StaticBox(self, -1, 'Analog output')
         self.outputSizer = wx.StaticBoxSizer(self.outputLbl, wx.HORIZONTAL)
         self.editvalue = FloatSpin(
             self, value=0, min_val=-4.0, max_val=4.0, increment=0.1, digits=3)
@@ -274,8 +272,7 @@ class PageOne(wx.Panel):
         grid2.Add(self.lblDAC, pos=(0, 0))
         grid2.Add(self.editvalue, pos=(0, 3))
         self.outputSizer.Add(grid2, 0, wx.ALL, border=10)
-        box = wx.StaticBox(self, -1, 'Export')
-        self.exportLbl = box
+        self.exportLbl = wx.StaticBox(self, -1, 'Export')
         self.exportSizer = wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)
         self.png = wx.Button(self, label="As PNG file...", size=(98, 25))
         self.Bind(wx.EVT_BUTTON, self.saveAsPNGEvent, self.png)
@@ -354,7 +351,7 @@ class PageOne(wx.Panel):
         self.ch1 = self.editch1.GetCurrentSelection()
         self.ch2 = self.editch2.GetCurrentSelection()
         self.range = self.editrange.GetCurrentSelection()
-        self.rate = self.editrate.GetValue()*1000
+        self.rate = self.editrate.GetValue() * 1000
         if self.ch1 == -1:
             frame.ShowErrorParameters()
             return
@@ -406,7 +403,6 @@ class PageOne(wx.Panel):
         value = self.editch1.GetValue()
         self.editch2.Clear()
         self.editch2.Append("AGND")
-
         if (int(value[1]) % 2) == 0:
             self.editch2.Append("A" + str(int(value[1])-1))
         else:
@@ -423,24 +419,19 @@ class PageThree(wx.Panel):
         self.buttons = []
         self.output = []
         self.value = []
-        self.status = 0
-        self.values = 0
+        self.status = self.values = 0
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
-        imageFile = "red.jpg"
-        bm = wx.Image(imageFile, wx.BITMAP_TYPE_ANY)
+        bm = wx.Image("../resources/red.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.imageRed = bm.ConvertToBitmap()
-        imageFile = "green.jpg"
-        bm = wx.Image(imageFile, wx.BITMAP_TYPE_ANY)
+        bm = wx.Image("../resources/green.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.imageGreen = bm.ConvertToBitmap()
-        imageFile = "switchon.jpg"
-        bm = wx.Image(imageFile, wx.BITMAP_TYPE_ANY)
+        bm = wx.Image("../resources/switchon.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.imageSwOn = bm.ConvertToBitmap()
-        imageFile = "switchoff.jpg"
-        bm = wx.Image(imageFile, wx.BITMAP_TYPE_ANY)
+        bm = wx.Image("../resources/switchoff.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.imageSwOff = bm.ConvertToBitmap()
         for i in range(6):
@@ -561,10 +552,7 @@ class PageFour(wx.Panel):
         self.stopCapture = wx.Button(self, label="Stop capture")
         self.stopCapture.Enable(False)
         self.Bind(wx.EVT_BUTTON, self.stopCaptureEvent, self.stopCapture)
-        radioList = []
-        radioList.append("Low time")
-        radioList.append("High time")
-        radioList.append("Full period")
+        radioList = ["Low time", "High time", "Full period"]
         self.rb = wx.RadioBox(
             self, label="Select width:", choices=radioList, majorDimension=3,
             style=wx.RA_SPECIFY_COLS)
@@ -581,9 +569,7 @@ class PageFour(wx.Panel):
         self.currentPosition = wx.TextCtrl(
             self, style=wx.TE_READONLY | wx.TE_CENTRE)
         self.encoderValue = wx.TextCtrl(self, style=wx.TE_CENTRE)
-        radioList = []
-        radioList.append("Circular")
-        radioList.append("Linear")
+        radioList = ["Circular", "Linear"]
         self.modeEncoder = wx.RadioBox(
             self, label="Select mode:", choices=radioList, majorDimension=3,
             style=wx.RA_SPECIFY_COLS)
@@ -618,9 +604,7 @@ class PageFour(wx.Panel):
         string = self.periodEdit.GetLineText(0)
         if string.isdigit():
             self.period = int(string)
-            self.duty = self.dutyEdit.GetValue()
-            self.duty *= 1023
-            self.duty /= 100
+            self.duty = self.dutyEdit.GetValue() * 1023 / 100
             frame.daq.init_pwm(self.duty, self.period)
         else:
             dlg = wx.MessageDialog(
@@ -686,8 +670,7 @@ class PageFour(wx.Panel):
 
     def startEncoderEvent(self, event):
         if self.modeEncoder.GetSelection() == 0:
-            string = self.encoderValue.GetLineText(0)
-            if string.isdigit():
+            if self.encoderValue.GetLineText(0).isdigit():
                 self.encoderResolution = int(self.encoderValue.GetLineText(0))
                 if self.encoderResolution < 0 or \
                         self.encoderResolution > 65535:
@@ -738,22 +721,15 @@ class MainFrame(wx.Frame):
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.daq = DAQ(port)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
-        icon = wx.Icon("./icon64.ico", wx.BITMAP_TYPE_ICO)
+        icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.statusBar = self.CreateStatusBar()
         self.statusBar.SetFieldsCount(2)
         info = self.daq.get_info()
-        vHW = "?"
-        if info[0] == 1:
-            vHW = "[M]"
-        else:
-            if info[0] == 2:
-                vHW = "[S]"
-        vFW = info[1]
-        v1 = vFW / 100
-        v2 = (vFW/10) % 10
-        v3 = vFW % 10
-        vFW = str(v1) + "." + str(v2) + "." + str(v3)
+        vHW = "[M]" if info[0] == 1 else "[S]"
+        vFW = (
+            str(info[1] / 100) + "." + str((info[1] / 10) % 10) + "." +
+            str(info[1] % 10))
         self.statusBar.SetStatusText("H:%s V:%s" % (vHW, vFW), 0)
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)

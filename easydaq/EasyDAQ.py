@@ -1,9 +1,22 @@
-'''
-Created on 01/03/2012
+#!/usr/bin/env python
 
-@author: Adrian
-'''
-
+# Copyright 2012
+# Adrian Alvarez <alvarez@ingen10.com> and Juan Menendez <juanmb@ingen10.com>
+#
+# This file is part of opendaq.
+#
+# opendaq is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# opendaq is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 import wx
@@ -73,10 +86,8 @@ class TimerThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.running = 1
-        self.drawing = 0
+        self.drawing = self.lastLength = self.currentLength = 0
         self.delay = 0.2
-        self.lastLength = 0
-        self.currentLength = 0
 
     def stop(self):
         self.drawing = 0
@@ -100,30 +111,14 @@ class TimerThread (threading.Thread):
                     frame.p.axes.clear()
                     frame.p.axes.autoscale(False)
                     frame.p.axes.grid(color='gray', linestyle='dashed')
-                    if(len(
-                        comunicationThread.y[0]) ==
-                            len(comunicationThread.x[0])):
-                                frame.p.axes.plot(
-                                    comunicationThread.y[0],
-                                    comunicationThread.x[0], color='r')
-                    if(len(
-                        comunicationThread.y[1]) ==
-                            len(comunicationThread.x[1])):
-                                frame.p.axes.plot(
-                                    comunicationThread.y[1],
-                                    comunicationThread.x[1], color='g')
-                    if(len(
-                        comunicationThread.y[2]) ==
-                            len(comunicationThread.x[2])):
-                                frame.p.axes.plot(
-                                    comunicationThread.y[2],
-                                    comunicationThread.x[2], color='b')
-                    if(len(
-                        comunicationThread.y[3]) ==
-                            len(comunicationThread.x[3])):
-                                frame.p.axes.plot(
-                                    comunicationThread.y[3],
-                                    comunicationThread.x[3], color='k')
+                    for i in range(4):
+                        if(len(
+                            comunicationThread.y[i]) ==
+                                len(comunicationThread.x[i])):
+                                    frame.p.axes.plot(
+                                        comunicationThread.y[i],
+                                        comunicationThread.x[i],
+                                        color=frame.colors[i])
                     frame.p.canvas.draw()
                     frame.p.axes.autoscale(True)
                 except:
@@ -140,15 +135,12 @@ class ComThread (threading.Thread):
         self.x = [[], [], [], []]
         self.y = [[], [], [], []]
         self.data_packet = []
-        self.delay = 1
-        self.threadSleep = 1
+        self.delay = self.threadSleep = 1
         self.ch = []
 
     def stop(self):
         self.streaming = 0
-        self.stopping = 1
-        self.delay = 1
-        self.threadSleep = 1
+        self.stopping = self.delay = self.threadSleep = 1
 
     def stopThread(self):
         self.running = 0
@@ -165,8 +157,7 @@ class ComThread (threading.Thread):
         timeList = []
         for i in range(4):
             timeList.append(int(frame.p.rate[i]))
-        r = min(timeList)
-        self.threadSleep = r/4
+        self.threadSleep = min(timeList)/4
         for i in range(3):
             if (frame.p.enableCheck[i+1].GetValue()):
                 value = int(frame.p.rate[i+1])
@@ -175,12 +166,11 @@ class ComThread (threading.Thread):
         if self.threadSleep < 10:
             self.threadSleep = 0
         else:
-            self.threadSleep = float(self.threadSleep) / 2000
+            self.threadSleep /= 2000.0
 
     def run(self):
         self.running = 1
-        self.stopping = 0
-        self.streaming = 0
+        self.stopping = self.streaming = 0
         self.data_packet = []
         while self.running:
             time.sleep(self.threadSleep)
@@ -194,7 +184,7 @@ class ComThread (threading.Thread):
                     # Write information comming from OpenDaq
                     self.debug = ''.join(map(chr, self.data_packet))
                     self.data_packet = []
-                    while 1:
+                    while True:
                         ret = frame.daq.get_stream(self.data_packet, self.ch)
                         if ret == 0:
                             break
@@ -210,51 +200,28 @@ class ComThread (threading.Thread):
                         continue
                 if ret == 3:
                     frame.stopChannel(self.ch[0])
-                self.count = self.count + 1
+                self.count += 1
                 self.currentTime = time.time()
                 self.difTime = self.currentTime-self.initTime
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
                     if frame.vHW == "s" and frame.p.ch2[self.ch[0]] != 0:
-                        multiplier_index = frame.p.range[self.ch[0]]
-                        multiplier = 1
-                        if multiplier_index == 1:
-                            multiplier = 2
-                        if multiplier_index == 2:
-                            multiplier = 4
-                        if multiplier_index == 3:
-                            multiplier = 5
-                        if multiplier_index == 4:
-                            multiplier = 8
-                        if multiplier_index == 5:
-                            multiplier = 10
-                        if multiplier_index == 6:
-                            multiplier = 16
-                        if multiplier_index == 7:
-                            multiplier = 20
-                        data_int /= multiplier
+                        multiplier_array = (2, 4, 5, 8, 10, 16, 20)
+                        data_int /= (
+                            multiplier_array[frame.p.range[self.ch[0]]-1])
                     if frame.vHW == "m":
                         gain = -frame.gains[frame.p.range[self.ch[0]]+1]
                         offset = frame.offset[frame.p.range[self.ch[0]]+1]
                     if frame.vHW == "s":
                         index1 = frame.p.ch1[self.ch[0]]
-                        index2 = frame.p.ch2[self.ch[0]]
-                        if index2 != 0:
+                        if frame.p.ch2[self.ch[0]] != 0:
                             index1 += 8
                         gain = frame.gains[index1]
                         offset = frame.offset[index1]
-                    data_int *= gain
-                    data = float(data_int)
-                    if frame.vHW == "m":
-                        data /= 100000
-                    if frame.vHW == "s":
-                        data /= 10000
-                    data += offset
-                    self.delay = float(frame.p.rate[self.ch[0]])
-                    self.delay /= 1000
-                    self.time = self.delay*len(self.x[self.ch[0]])
-                    limit = 1000 / frame.p.rate[self.ch[0]]
-                    if self.count > limit:
+                    data = self.transform_data(float(data_int * gain)) + offset
+                    self.delay = frame.p.rate[self.ch[0]]/1000.0
+                    self.time = self.delay * len(self.x[self.ch[0]])
+                    if self.count > (1000 / frame.p.rate[self.ch[0]]):
                         if frame.p.externFlag[self.ch[0]] == 1:
                             self.y[self.ch[0]].append(self.difTime)
                         else:
@@ -280,42 +247,28 @@ class ComThread (threading.Thread):
                         pass
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
-
                     if frame.vHW == "m":
                         gain = -frame.gains[frame.p.range[self.ch[i]]+1]
                         offset = frame.offset[frame.p.range[self.ch[i]]+1]
                     if frame.vHW == "s":
                         index1 = frame.p.ch1[self.ch[i]]
-                        index2 = frame.p.ch2[self.ch[i]]
-                        if index2 != 0:
+                        if frame.p.ch2[self.ch[i]] != 0:
                             index1 += 8
                         gain = frame.gains[index1]
                         offset = frame.offset[index1]
-                    data_int *= gain
-                    if frame.vHW == "m":
-                        data /= 100000
-                    if frame.vHW == "s":
-                        data /= 10000
-                    data_int += frame.offset[frame.p.range[self.ch[i]]]
-                    self.delay = float(frame.p.rate[self.ch[i]])
-                    self.delay /= 1000
+                    data_int = (
+                        self.transform_data(data_int * gain) +
+                        frame.offset[frame.p.range[self.ch[i]]])
+                    self.delay = frame.p.rate[self.ch[i]]/1000.0
                     self.time = self.delay * len(self.x[self.ch[i]])
                     self.x[self.ch[i]].append(float(data_int))
                     self.y[self.ch[i]].append(self.time)
                 frame.p.axes.cla()
                 frame.p.axes.grid(color='gray', linestyle='dashed')
-                frame.p.axes.plot(
-                    comunicationThread.y[0],
-                    comunicationThread.x[0], color='r')
-                frame.p.axes.plot(
-                    comunicationThread.y[1],
-                    comunicationThread.x[1], color='g')
-                frame.p.axes.plot(
-                    comunicationThread.y[2],
-                    comunicationThread.x[2], color='b')
-                frame.p.axes.plot(
-                    comunicationThread.y[3],
-                    comunicationThread.x[3], color='k')
+                for i in range(4):
+                    frame.p.axes.plot(
+                        comunicationThread.y[i],
+                        comunicationThread.x[i], color=frame.colors[i])
                 frame.p.canvas.draw()
                 frame.daq.flush()
                 for i in range(4):
@@ -331,6 +284,12 @@ class ComThread (threading.Thread):
                 self.stopping = 0
                 frame.p.buttonPlay.Enable(True)
 
+    def transform_data(self, data):
+        if frame.vHW == "m":
+            return data / 100000
+        if frame.vHW == "s":
+            return data / 10000
+
 
 class StreamDialog(wx.Dialog):
     def __init__(self, parent):
@@ -339,8 +298,7 @@ class StreamDialog(wx.Dialog):
         boxSizer = wx.GridBagSizer(hgap=5, vgap=5)
         mainLayout = wx.BoxSizer(wx.VERTICAL)
         hSizer = wx.GridBagSizer(hgap=5, vgap=5)
-        self.csvFlag = 0
-        self.burstModeFlag = 0
+        self.csvFlag = self.burstModeFlag = 0
         self.dataLbl = []
         self.datagraphSizer = []
         dataSizer = []
@@ -471,20 +429,7 @@ class StreamDialog(wx.Dialog):
                     dlg.Destroy()
         # Calibration
         for i in range(len(self.csvBuffer)):
-            value = int(round(self.csvBuffer[i]))
-            if not -4096 <= value < 4096:
-                raise ValueError('DAQ voltage out of range')
-            value *= frame.daq.dacGain
-            if frame.vHW == "s":
-                value *= 2
-            data = float(value)
-            data /= 1000
-            data += frame.daq.dacOffset
-            data += 4096
-            data *= 2
-            if frame.vHW == "s" and data < 0:
-                data = 0
-            self.csvBuffer[i] = data
+            self.csvBuffer[i] = calibration(int(round(self.csvBuffer[i])))
         dlg.Destroy()
         self.csvFlag = 1
         for i in range(4):
@@ -507,14 +452,12 @@ class StreamDialog(wx.Dialog):
             if(self.enable[i].IsChecked()):
                 self.signal = i
                 frame.p.waveForm = i
-        self.amplitude = self.amplitudeEdit.GetValue()
-        self.amplitude = self.amplitude*1000
-        self.offset = self.offsetEdit.GetValue()
-        self.offset = self.offset*1000
+        self.amplitude = self.amplitudeEdit.GetValue() * 1000
+        self.offset = self.offsetEdit.GetValue() * 1000
         self.ton = self.tOnEdit.GetValue()
         self.tRise = self.tRiseEdit.GetValue()
         if self.burstMode.GetValue():
-            self.period = self.periodoBurstEdit.GetValue()/100
+            self.period = self.periodoBurstEdit.GetValue() / 100
         else:
             self.period = self.periodoEdit.GetValue()
         if self.signal < 0:
@@ -548,8 +491,7 @@ class StreamDialog(wx.Dialog):
         self.EndModal(wx.ID_OK)
 
     def enableEvent(self, event):
-        button = event.GetEventObject()
-        index1 = button.GetId()-200
+        index1 = event.GetEventObject().GetId()-200
         if(self.enable[index1].IsChecked()):
             for i in range(5):
                 if i != index1:
@@ -639,14 +581,10 @@ class ConfigDialog (wx.Dialog):
         self.editch1Change(0)
 
     def externModeEvent(self, event):
-        if self.enableExtern.GetValue() is True:
-            self.editrate.Enable(False)
-        else:
-            self.editrate.Enable(True)
+        self.editrate.Enable(not self.enableExtern.GetValue())
 
     def confirmEvent(self, event):
-        string = self.editrate.GetLineText(0)
-        if string.isdigit():
+        if self.editrate.GetLineText(0).isdigit():
             self.rate = int(self.editrate.GetLineText(0))
             if self.rate < 1 or self.rate > 65535:
                 dlg = wx.MessageDialog(
@@ -715,10 +653,9 @@ class MyCustomToolbar(NavigationToolbar2Wx):
         # Create the default toolbar
         NavigationToolbar2Wx.__init__(self, plotCanvas)
         # Remove the unwanted button
-        self.DeleteToolByPos(8)
-        self.DeleteToolByPos(7)
-        self.DeleteToolByPos(2)
-        self.DeleteToolByPos(1)
+        delete_array = (8, 7, 2, 1)
+        for i in delete_array:
+            self.DeleteToolByPos(i)
 
 
 class InterfazPanel(wx.Panel):
@@ -738,13 +675,10 @@ class InterfazPanel(wx.Panel):
         self.mode = [0, 0, 0, 0]
         self.npoint = [0, 0, 0, 0]
         self.externFlag = [0, 0, 0, 0]
-        self.burstModeStreamOut = 0
-        self.amplitudeStreamOut = 1000
-        self.offsetStreamOut = 1000
-        self.tOnStreamOut = 5
-        self.tRiseStreamOut = 5
+        self.burstModeStreamOut = self.waveForm = 0
+        self.amplitudeStreamOut = self.offsetStreamOut = 1000
+        self.tOnStreamOut = self.tRiseStreamOut = 5
         self.periodStreamOut = 15
-        self.waveForm = 0
         self.configure = []
         self.color = []
         self.dataLbl = []
@@ -914,8 +848,7 @@ class InterfazPanel(wx.Panel):
 
     def configureEvent(self, event):
         wx.SetCursor(wx.StockCursor(wx.CURSOR_HAND))
-        button = event.GetEventObject()
-        index1 = button.GetId()-100
+        index1 = event.GetEventObject().GetId()-100
         dlg = ConfigDialog(self, index1)
         if dlg.ShowModal() == wx.ID_OK:
             self.ch1[index1] = dlg.editch1.GetCurrentSelection()
@@ -935,10 +868,9 @@ class InterfazPanel(wx.Panel):
             self.samples[index1] = int(dlg.editsamples.GetLineText(0))
             self.mode[index1] = dlg.editmode.GetCurrentSelection()
             if self.mode[index1] == 0:
-                self.npoint[index1] = 0
-                self.mode[index1] = 0
+                self.npoint[index1] = self.mode[index1] = 0
             else:
-                self.npoint[index1] = 20*self.mode[index1]
+                self.npoint[index1] = 20 * self.mode[index1]
                 self.mode[index1] = 1
             dlg.Destroy()
 
@@ -963,7 +895,7 @@ class InterfazPanel(wx.Panel):
                     self.samples[i])  # Analog input
         if self.enableCheck[4].GetValue():
             if self.burstModeStreamOut:
-                frame.daq.create_burst(self.interval*100)
+                frame.daq.create_burst(self.interval * 100)
                 frame.daq.setup_channel(
                     1, len(self.buffer), 0)  # Mode continuous
                 frame.daq.conf_channel(1, 1, 0, 0, 0, 0)  # Analog output
@@ -980,7 +912,7 @@ class InterfazPanel(wx.Panel):
                 self.end = self.init+xLength
                 self.interBuffer = self.buffer[self.init:self.end]
                 frame.daq.load_signal(self.interBuffer, self.init)
-            self.init = nBuffers*xLength
+            self.init = nBuffers * xLength
             self.interBuffer = self.buffer[self.init:]
             if len(self.interBuffer) > 0:
                 frame.daq.load_signal(self.interBuffer, self.init)
@@ -1035,7 +967,7 @@ class InterfazPanel(wx.Panel):
             self.buffer = []
             for i in range(self.points):
                 self.value = self.init
-                self.value += (self.increment*i)
+                self.value += (self.increment * i)
                 self.buffer.append(self.value)
         if self.signalStreamOut == 3:
             # Triangle
@@ -1055,7 +987,7 @@ class InterfazPanel(wx.Panel):
             self.buffer = []
             for i in range(self.points):
                 self.value = self.init
-                self.value += (self.increment*i)
+                self.value += (self.increment * i)
                 self.buffer.append(self.value)
             if self.periodStreamOut < 140:
                 self.points = int(self.periodStreamOut-self.tRiseStreamOut)
@@ -1065,14 +997,13 @@ class InterfazPanel(wx.Panel):
             else:
                 self.time = int(self.periodStreamOut-self.tRiseStreamOut)
                 self.points = 140-self.points  # Ideal n points
-                self.interval = int(self.time/self.points)
+                self.interval = int(self.time / self.points)
                 self.interval += 1
-                self.points = int(self.time/self.interval)
-                self.increment = int(self.amplitudeStreamOut/self.points)
-            self.init = int(self.offsetStreamOut+self.amplitudeStreamOut)
+                self.points = int(self.time / self.interval)
+                self.increment = int(self.amplitudeStreamOut / self.points)
+            self.init = int(self.offsetStreamOut + self.amplitudeStreamOut)
             for i in range(self.points):
-                self.value = self.init
-                self.value -= (self.increment*i)
+                self.value = self.init - (self.increment * i)
                 self.buffer.append(self.value)
         if self.signalStreamOut == 4:
             # Continuous
@@ -1086,20 +1017,7 @@ class InterfazPanel(wx.Panel):
             if info[1] < 110:
                 self.buffer[i] = dacValue
             else:
-                value = int(round(dacValue))
-                if not -4096 <= value < 4096:
-                    raise ValueError('DAQ voltage out of range')
-                value *= frame.daq.dacGain
-                if self.frame.vHW == "s":
-                    value *= 2
-                data = float(value)
-                data /= 1000
-                data += frame.daq.dacOffset
-                data += 4096
-                data *= 2
-                if self.frame.vHW == "s" and data < 0:
-                    data = 0
-                self.buffer[i] = data
+                self.buffer[i] = calibration(int(round(dacValue)))
         if len(self.buffer) >= 140:
             self.buffer = self.buffer[:140]
 
@@ -1109,24 +1027,18 @@ class MainFrame(wx.Frame):
         wx.Frame.__init__(
             self, None, title="EasyDAQ", style=wx.DEFAULT_FRAME_STYLE &
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
+        self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(commPort)
         self.vHW = self.daq.get_vHW()
-        icon = wx.Icon("./icon64.ico", wx.BITMAP_TYPE_ICO)
+        icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.statusBar = self.CreateStatusBar()
         self.statusBar.SetFieldsCount(2)
         info = self.daq.get_info()
-        vHW = "?"
-        if info[0] == 1:
-            vHW = "[M]"
-        else:
-            if info[0] == 2:
-                vHW = "[S]"
-        vFW = info[1]
-        v1 = vFW / 100
-        v2 = (vFW/10) % 10
-        v3 = vFW % 10
-        vFW = str(v1) + "." + str(v2) + "." + str(v3)
+        vHW = "[M]" if info[0] == 1 else "[S]"
+        vFW = (
+            str(info[1] / 100) + "." + str((info[1] / 10) % 10) + "." +
+            str(info[1] % 10))
         self.statusBar.SetStatusText("H:%s V:%s" % (vHW, vFW), 0)
         self.channelState = [0, 0, 0, 0]
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -1144,8 +1056,7 @@ class MainFrame(wx.Frame):
         self.gains, self.offset = self.daq.get_cal()
 
     def setVoltage(self, voltage):
-        dacValue = voltage
-        self.daq.set_analog(dacValue)
+        self.daq.set_analog(voltage)
 
     def OnClose(self, event):
         dlg = wx.MessageDialog(
@@ -1166,10 +1077,9 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
 
     def stopChannel(self, number):
-        self.channelState[number] = 0
-        suma = 0
+        self.channelState[number] = suma = 0
         for i in range(3):
-            suma = suma+self.channelState[i]
+            suma += self.channelState[i]
         if suma == 0:
             self.p.buttonPlay.Enable(True)
             self.p.buttonStop.Enable(False)
@@ -1241,6 +1151,18 @@ class InitDlg(wx.Dialog):
     def cancelEvent(self, event):
         self.port = 0
         self.EndModal(0)
+
+
+def calibration(value):
+    if not -4096 <= value < 4096:
+        raise ValueError('DAQ voltage out of range')
+    value *= frame.daq.dacGain
+    if frame.vHW == "s":
+        value *= 2
+    data = (value / 1000.0 + frame.daq.dacOffset + 4096) * 2
+    if frame.vHW == "s" and data < 0:
+        data = 0
+    return data
 
 
 class MyApp(wx.App):

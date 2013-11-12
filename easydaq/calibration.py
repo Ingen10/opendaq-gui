@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+
+# Copyright 2012
+# Adrian Alvarez <alvarez@ingen10.com> and Juan Menendez <juanmb@ingen10.com>
+#
+# This file is part of opendaq.
+#
+# opendaq is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# opendaq is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
+
 import sys
 import wx
 import threading
@@ -57,8 +77,7 @@ class MainFrame(wx.Frame):
         self.adcgains = []
         self.adcoffset = []
         self.adcgains, self.adcoffset = self.daq.get_cal()
-        self.dacgain = 0
-        self.dacoffset = 0
+        self.dacgain = self.dacoffset = 0
         self.dacgain, self.dacoffset = self.daq.get_dac_cal()
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
@@ -102,8 +121,7 @@ class MainFrame(wx.Frame):
 class AdcPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
-        self.status = 0
-        self.values = 0
+        self.status = self.values = 0
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
         valuesSizer = wx.GridBagSizer(hgap=8, vgap=8)
         grid = wx.GridBagSizer(hgap=4, vgap=9)
@@ -207,9 +225,8 @@ class AdcPage(wx.Panel):
         self.SetSizerAndFit(mainSizer)
 
     def nPointsChange(self, event):
-        npoint = self.editnpoints.GetValue()
         for i in range(5):
-            if i < int(npoint):
+            if i < int(self.editnpoints.GetValue()):
                 self.valueEdit[i].Enable(True)
                 self.adcValues[i].Enable(True)
                 self.buttons[i].Enable(True)
@@ -261,30 +278,24 @@ class AdcPage(wx.Panel):
         time.sleep(0.5)
         data_int = frame.daq.read_adc()
         time.sleep(0.5)
-        data_int = frame.daq.read_adc()
+        data_int = frame.daq.read_adc()  # Repeat for stabilizing
         self.adcValues[index1].Clear()
         self.adcValues[index1].AppendText(str(data_int))
 
     def getValuesEvent(self, event):
-        npoints = self.editnpoints.GetValue()
         self.range = self.editrange.GetCurrentSelection()
         if frame.vHW == "s":
             sel = self.selection.GetCurrentSelection()
         self.x = []
         self.y = []
-        for i in range(int(npoints)):
-            dacValue = self.valueEdit[i].GetValue()
-            dacValueInt = int(dacValue * 1000)
-            adcValue = self.adcValues[i].GetLineText(0)
-            adcValueInt = int(adcValue)
-            self.y.append(dacValueInt)
-            self.x.append(adcValueInt)
+        for i in range(int(self.editnpoints.GetValue())):
+            self.y.append(int(self.valueEdit[i].GetValue() * 1000))
+            self.x.append(int(self.adcValues[i].GetLineText(0)))
         r = numpy.polyfit(self.x, self.y, 1)
         if frame.vHW == "m":
-            self.slope = int(r[0] * 100000)
+            self.slope = abs(int(r[0] * 100000))
         if frame.vHW == "s":
-            self.slope = int(r[0] * 10000)
-        self.slope = abs(self.slope)
+            self.slope = abs(int(r[0] * 10000))
         self.intercept = int(r[1])
         if frame.vHW == "m":
             self.gainsEdit[self.range].Clear()
@@ -308,37 +319,30 @@ class AdcPage(wx.Panel):
         self.saveCalibration()
 
     def updateDAC(self, event):
-        dacValue = self.editDAC.GetValue()
-        frame.daq.set_analog(dacValue)
+        frame.daq.set_analog(self.editDAC.GetValue())
 
     def saveCalibration(self):
         self.slope = []
         self.intercept = []
-        self.flag = ""
         if frame.vHW == "m":
             for i in range(5):
-                value = self.gainsEdit[i].GetLineText(0)
-                self.slope.append(int(value))
-                value = self.offsetEdit[i].GetLineText(0)
-                self.intercept.append(int(value))
+                self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
+                self.intercept.append(int(self.offsetEdit[i].GetLineText(0)))
             self.flag = "M"
         if frame.vHW == "s":
             if self.editrange.Value == "SE":
                 self.flag = "SE"
                 for i in range(8):
-                    value = self.gainsEdit[i].GetLineText(0)
-                    self.slope.append(int(value))
-                    value = self.offsetEdit[i].GetLineText(0)
-                    self.intercept.append(int(value))
+                    self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
+                    self.intercept.append(
+                        int(self.offsetEdit[i].GetLineText(0)))
             if self.editrange.Value == "DE":
                 self.flag = "DE"
                 for i in range(8):
-                    value = self.gainsEdit[i].GetLineText(0)
-                    self.slope.append(int(value))
-                    value = self.offsetEdit[i].GetLineText(0)
-                    self.intercept.append(int(value))
+                    self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
+                    self.intercept.append(
+                        int(self.offsetEdit[i].GetLineText(0)))
         frame.daq.set_cal(self.slope, self.intercept, self.flag)
-        frame.daq.get_cal()
 
     def exportEvent(self, event):
         dlg = wx.TextEntryDialog(
@@ -354,54 +358,42 @@ class AdcPage(wx.Panel):
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetFilename()
             self.dirname = dlg.GetDirectory()
-            self.exportCalibration(self.dirname+"/"+self.filename, id)
+            self.exportCalibration(
+                self.dirname+"/"+self.filename, id)
         dlg.Destroy()
 
     def exportCalibration(self, file, id):
         outputfile = open(file, 'w')
-        model = "unknown"
-        if frame.vHW == "m":
-            model = "M"
-        if frame.vHW == "s":
-            model = "S"
-        output = "CALIBRATION REPORT OPENDAQ-" + model + ": " + id + "\n\n"
-        outputfile.write(output)
-        output = "DAC CALIBRATION\n"
-        outputfile.write(output)
-        output = (
+        model = frame.vHW.upper()
+        outputfile.write(
+            "CALIBRATION REPORT OPENDAQ-" + model + ": " + id + "\n\n")
+        outputfile.write("DAC CALIBRATION\n")
+        outputfile.write(
             "Slope: " + str(frame.dacgain) + "    Intercept: " +
             str(frame.dacoffset) + "\n\n")
-        outputfile.write(output)
-        output = "ADC CALIBRATION\n"
-        outputfile.write(output)
+        outputfile.write("ADC CALIBRATION\n")
         if frame.vHW == "s":
             for i in range(1, 9):
-                output = "A%d:\n" % i
-                outputfile.write(output)
-                output = (
+                outputfile.write("A%d:\n" % i)
+                outputfile.write(
                     "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
                     str(frame.adcoffset[i]) + "\n")
-                outputfile.write(output)
             outputfile.write("\n")
             for i in range(9, 17):
                 if i % 2:
-                    output = "A" + str(i-8) + "-A" + str(i-7)
+                    output = "A" + str(i-8) + "-A" + str(i-7) + ":\n"
                 else:
-                    output = "A" + str(i-8) + "-A" + str(i-9)
-                output += ":\n"
+                    output = "A" + str(i-8) + "-A" + str(i-9) + ":\n"
                 outputfile.write(output)
-                output = (
+                outputfile.write(
                     "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
                     str(frame.adcoffset[i]) + "\n")
-                outputfile.write(output)
         if frame.vHW == "m":
             for i in range(1, 6):
-                output = "Gain%d:\n" % i
-                outputfile.write(output)
-                output = (
+                outputfile.write("Gain%d:\n" % i)
+                outputfile.write(
                     "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
                     str(frame.adcoffset[i]) + "\n")
-                outputfile.write(output)
         dlg = (wx.MessageDialog(
             self, "Report saved", "Report saved", wx.OK | wx.ICON_QUESTION))
         dlg.ShowModal()
@@ -411,8 +403,7 @@ class AdcPage(wx.Panel):
 class DacPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
-        self.status = 0
-        self.values = 0
+        self.status = self.values = 0
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
         valuesSizer = wx.GridBagSizer(hgap=8, vgap=8)
         grid = wx.GridBagSizer(hgap=4, vgap=9)
@@ -489,9 +480,8 @@ class DacPage(wx.Panel):
         self.SetSizerAndFit(mainSizer)
 
     def nPointsChange(self, event):
-        npoint = self.editnpoints.GetValue()
         for i in range(5):
-            if i < int(npoint):
+            if i < int(self.editnpoints.GetValue()):
                 self.valueEdit[i].Enable(True)
                 self.buttons[i].Enable(True)
             else:
@@ -499,23 +489,20 @@ class DacPage(wx.Panel):
                 self.valueEdit[i].Enable(False)
 
     def updateEvent(self, event):
-        button = event.GetEventObject()
-        index1 = button.GetId()-100
+        index1 = event.GetEventObject().GetId()-100
         self.realDAC[index1] = self.editDAC.GetValue()
         self.readDAC[index1] = self.valueEdit[index1].GetValue()
         self.valueEdit[index1].Enable(False)
         self.buttons[index1].Enable(False)
 
     def getValuesEvent(self, event):
-        npoints = self.editnpoints.GetValue()
         self.x = []
         self.y = []
-        for i in range(int(npoints)):
+        for i in range(int(self.editnpoints.GetValue())):
             self.y.append(self.realDAC[i] * 1000)
             self.x.append(self.readDAC[i] * 1000)
         r = numpy.polyfit(self.x, self.y, 1)
-        self.slope = int(r[0] * 1000)
-        self.slope = abs(self.slope)
+        self.slope = abs(int(r[0] * 1000))
         self.intercept = int(round(r[1], 0))
         self.gainsEdit.Clear()
         self.gainsEdit.AppendText(str(self.slope))
@@ -529,23 +516,17 @@ class DacPage(wx.Panel):
         self.saveCalibration()
 
     def resetEvent(self, event):
-        npoints = self.editnpoints.GetValue()
-        for i in range(int(npoints)):
+        for i in range(int(self.editnpoints.GetValue())):
             self.buttons[i].Enable(True)
             self.valueEdit[i].Enable(True)
         self.realDAC = numpy.zeros(5)
         self.readDAC = numpy.zeros(5)
 
     def checkDacEvent(self, event):
-        dacValue = self.editCheck.GetValue()
-        frame.daq.set_analog(dacValue)
+        frame.daq.set_analog(self.editCheck.GetValue())
 
     def updateDAC(self, event):
-        dacValue = self.editDAC.GetValue()
-        dacValue *= 1000
-        dacValue += 4096
-        dacValue *= 2
-        frame.daq.set_dac(dacValue)
+        frame.daq.set_dac((self.editDAC.GetValue() * 1000 + 4096) * 2)
 
     def saveCalibration(self):
         frame.daq.set_DAC_cal(self.slope, self.intercept)
