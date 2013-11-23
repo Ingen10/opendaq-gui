@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 # Copyright 2012
-# Adrian Alvarez <alvarez@ingen10.com> and Juan Menendez <juanmb@ingen10.com>
+# Adrian Alvarez <alvarez@ingen10.com>, Juan Menendez <juanmb@ingen10.com>
+# and Armando Vincelle <armando@ingen10.com>
 #
 # This file is part of opendaq.
 #
@@ -112,7 +113,7 @@ class DAQ:
 
     def read_analog(self):
         value = self.send_command('\x01\x00', 'h')[0]
-        # Raw to voltage->
+        # Raw value to voltage->
         index = self.gain+1 if self.vHW == "m" else self.input
         value *= self.gains[index]
         value = value / -100000.0 if self.vHW == "m" else value / 10000.0
@@ -151,7 +152,7 @@ class DAQ:
         if (
             (self.vHW == "m" and not -4096 <= value < 4096) or
                 (self.vHW == "s" and not 0 <= value < 4096)):
-                    raise ValueError('DAQ voltage out of range')
+                    raise ValueError('DAQ potential out of range')
         data = (value * self.dacGain / 1000.0 + self.dacOffset + 4096) * 2
         if self.vHW == "s":
             if data < 0:
@@ -359,10 +360,10 @@ class DAQ:
         if len(ret) != 4:
             raise LengthError
 
-    # This function get stream from serial.
-    # Returns 0 if there aren't any incoming data
+    # This function reads a stream from serial connection.
+    # Returns 0 if there is not incoming data
     # Returns 1 if data stream was precessed
-    # Returns 2 if no data stream received. Useful for debuging
+    # Returns 2 if no data stream was received (useful for debugging)
     def get_stream(self, data, channel, callback=0):
         self.header = []
         self.data = []
@@ -385,7 +386,7 @@ class DAQ:
             else:
                 self.header.append(char[0])
             if len(self.header) == 3 and self.header[2] == 80:
-                # ODaq send stop
+                # openDAQ sent a stop command
                 ret = self.ser.read(2)
                 char, ch = struct.unpack('>BB', ret)
                 channel.append(ch-1)
@@ -433,7 +434,7 @@ class DAQ:
 
     def spisw_setup(self, nbytes, bbsck=1, bbmosi=2, bbmiso=3):
         if not 0 <= nbytes <= 3:
-            raise ValueError('Invalid bytes number')
+            raise ValueError('Invalid number of bytes')
         if not 1 <= bbsck <= 6 or not 1 <= bbmosi <= 6 or not 1 <= bbmosi <= 6:
             raise ValueError('Invalid spisw_setup values')
         cmd = struct.pack('>BBBBB', 28, 3, bbsck, bbmosi, bbmiso)
@@ -441,7 +442,7 @@ class DAQ:
 
     def spisw_transfer(self, nbytes, data):
         if not 1 <= nbytes <= 64:
-            raise ValueError('Invalid bytes number')
+            raise ValueError('Invalid number of bytes')
         format = '>BB'
         for i in range(nbytes):
             format += 'B'
