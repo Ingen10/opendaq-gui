@@ -440,17 +440,14 @@ class DAQ:
         cmd = struct.pack('>BBBBB', 28, 3, bbsck, bbmosi, bbmiso)
         return self.send_command(cmd, 'BBB')
 
-    def spisw_transfer(self, nbytes, data):
-        if not 1 <= nbytes <= 64:
-            raise ValueError('Invalid number of bytes')
-        format = '>BB'
-        for i in range(nbytes):
-            format += 'B'
-        cmd = struct.pack(format, 29, nbytes, data)
-        format = ''
-        for i in range(nbytes):
-            format += 'B'
-        return self.send_command(cmd, format)
+    def spisw_bytetransfer(self, value):
+        cmd = struct.pack('>BBB', 29, 1, value)
+        return self.send_command(cmd, 'B')[0]
+
+    def spisw_wordtransfer(self, value):
+        cmd = struct.pack('>BBH', 29, 2, value)
+        return self.send_command(cmd, 'H')[0]
+
 
 if __name__ == '__main__':
     daq = DAQ('COM4')
