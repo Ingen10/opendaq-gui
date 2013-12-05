@@ -119,7 +119,7 @@ class DAQ:
         Returns:
             The command number into variable 'data'.
         Raises:
-        LengthError: An error occurred.
+            LengthError: An error occurred.
         """
         # Add 'command' and 'length' fields to the format string
         fmt = '>bb' + ret_fmt
@@ -227,8 +227,8 @@ class DAQ:
         LED switch on (green, red or orange) or switch off.
 
         Args:
-                color: variable that defines the led color (0=off, 1=green,
-        2=red, 3=orange).
+            color: variable that defines the led color (0=off, 1=green,
+            2=red, 3=orange).
 
         Raises:
             ValueError: An error ocurred caused for invalid selecction,
@@ -288,7 +288,7 @@ class DAQ:
         Configure/Read all PIOs directions.
 
         Args:
-                output: variable that defines PIOs direction values
+            output: variable that defines PIOs direction values
             (0 inputs, 1 outputs).
         """
         cmd = struct.pack('BBB', 9, 1, output)
@@ -310,8 +310,7 @@ class DAQ:
 
         Args:
             number: variable that defines the PIO number.
-            output: variable that defines PIO direction
-        (0 input, 1 output).
+            output: variable that defines PIO direction (0 input, 1 output).
         Raises:
             ValueError: An error ocurred when the PIO number doesn´t exist,
             and print 'Invalid PIO number'.
@@ -329,7 +328,7 @@ class DAQ:
             number: variable that defines the PIO number.
             value: variable that defines low or high voltage output (+5V)
         Raises:
-            ValueError: An error ocurred when the PIO number doesn´t exist,
+            ValueError: An error ocurred when the PIO number doesn�t exist,
             and print 'Invalid PIO number'.
         """
         if not 1 <= number <= 6:
@@ -404,10 +403,6 @@ class DAQ:
         cmd = struct.pack('>BBB', 50, 1, resolution)
         return self.send_command(cmd, 'B')[0]
 
-    def stop_encoder(self):
-        """
-        Stop encoder function.
-        """
         self.send_command('\x33\x00', '')
 
     def get_encoder(self):
@@ -612,7 +607,7 @@ class DAQ:
 
         Args:
             data: variable that defines the data number [1:400].
-            offset:
+            offset: variable that defines the offset.
         """
         cmd = struct.pack(
             '>bBh%dh' % len(data), 23, len(data) * 2 + 2, offset, *data)
@@ -640,17 +635,11 @@ class DAQ:
 
     def flush_stream(self, data, channel):
         """
-        Get stream from serial and reveive data in the buffer.
+        Flush stream from buffer.
 
         Args:
            data: variable that defines the data
            channel: variable that defines the channel
-
-        Returns:
-            0 if there aren't any incoming data.
-            1 if data stream was processed.
-            2 if no data stream received. Useful for debuging.
-
         Raises:
            LengthError: An error ocurred.
         """
@@ -703,16 +692,17 @@ class DAQ:
     # Returns 2 if no data stream was received (useful for debugging)
     def get_stream(self, data, channel, callback=0):
         """
+        Get stream from serial connection.
+
         Args:
             data: variable that defines the data
             channel: variable that defines the channel
             callback: variable that defines the callback mode
 
         Returns:
-            0 ???
-            1 ???
-            2 ???
-            3 ???
+            0 if there aren't any incoming data.
+            1 if data stream was processed.
+            2 if no data stream received. Useful for debuging.
         """
         self.header = []
         self.data = []
@@ -803,24 +793,65 @@ class DAQ:
         return self.send_command(cmd, 'bbI')
 
     def spisw_config(self, cpol, cpha):
+        """
+        Bit-Bang SPI configure (clock properties).
+
+        Args:
+            cpol: variable that defines clock polarity (clock pin state when
+            inactive).
+            cpha: variable that defines clock phase (leading 0, or trailing 1
+            edges read).
+        Raises:
+            ValueError: An error ocurred and print 'Invalid spisw_config
+                values'.
+        """
         if not 0 <= cpol <= 1 or not 0 <= cpha <= 1:
             raise ValueError('Invalid spisw_config values')
         cmd = struct.pack('>BBB', 26, 2, cpol, cpha)
         return self.send_command(cmd, 'BB')
 
     def spisw_setup(self, nbytes, bbsck=1, bbmosi=2, bbmiso=3):
+        """
+        Bit-Bang SPI setup (PIO numbers to use).
+
+        Args:
+            nbytes: variable that defines number of bytes.
+            bbsck: variable that defines clock pin for bit bang SPI transfer.
+            bbmosi: variable that defines master out-Slave in pin for bit
+            bang SPI transfer.
+            bbmiso: variable that defines master in-Slave out pin for bit
+            bang SPI transfer.
+        Raises:
+            ValueError: An error ocurred when nbytes isn't between [0:3]
+            and print 'Invalid number of bytes' or when (bbsck, bbmosi or
+            bbmiso) are out of range and print 'Invalid spisw_setup values'.
+        """
         if not 0 <= nbytes <= 3:
             raise ValueError('Invalid number of bytes')
-        if not 1 <= bbsck <= 6 or not 1 <= bbmosi <= 6 or not 1 <= bbmosi <= 6:
+        if not 1 <= bbsck <= 6 or not 1 <= bbmosi <= 6 or not 1 <= bbmiso <= 6:
             raise ValueError('Invalid spisw_setup values')
         cmd = struct.pack('>BBBBB', 28, 3, bbsck, bbmosi, bbmiso)
         return self.send_command(cmd, 'BBB')
 
     def spisw_bytetransfer(self, value):
+        """
+        Bit-Bang SPI transfer (send+receive) (byte).
+
+        Args:
+            value: variable that defines data to send (byte to transmit)
+            (MOSI output).
+        """
         cmd = struct.pack('>BBB', 29, 1, value)
         return self.send_command(cmd, 'B')[0]
 
     def spisw_wordtransfer(self, value):
+        """
+        Bit-Bang SPI transfer (send+receive) (word).
+
+        Args:
+            value: variable that defines data to send (word to transmit)
+            (MOSI output).
+        """
         cmd = struct.pack('>BBH', 29, 2, value)
         return self.send_command(cmd, 'H')[0]
 
