@@ -312,7 +312,7 @@ class DAQ:
             number: variable that defines the PIO number.
             output: variable that defines PIO direction (0 input, 1 output).
         Raises:
-            ValueError: An error ocurred when the PIO number doesnÂ´t exist,
+            ValueError: An error ocurred when the PIO number doesnt exist,
             and print 'Invalid PIO number'.
         """
         if not 1 <= number <= 6:
@@ -328,7 +328,7 @@ class DAQ:
             number: variable that defines the PIO number.
             value: variable that defines low or high voltage output (+5V)
         Raises:
-            ValueError: An error ocurred when the PIO number doesn´t exist,
+            ValueError: An error ocurred when the PIO number doesnt exist,
             and print 'Invalid PIO number'.
         """
         if not 1 <= number <= 6:
