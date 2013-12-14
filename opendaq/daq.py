@@ -153,7 +153,7 @@ class DAQ:
         Returns:
             Hardware version
             Firmware version
-            Devide ID number
+            Device ID number
         """
         return self.send_command('\x27\x00', 'bbI')
 
@@ -265,7 +265,7 @@ class DAQ:
 
     def set_analog(self, volts):
         """
-        Set DAC output voltage (milivolts value).
+        Set DAC output voltage (millivolts value).
 
         Set the output voltage value between the voltage hardware limits.
         Device calibration values are used for the calculation.
@@ -276,13 +276,13 @@ class DAQ:
             volts: value in volts to be set at the DAC output.
         Raises:
             ValueError: An error ocurred when voltage is out of range
-            print 'DAQ potential out of range'.
+            print 'DAC voltage out of range'.
         """
         value = int(round(volts*1000))
         if (
             (self.vHW == "m" and not -4096 <= value < 4096) or
                 (self.vHW == "s" and not 0 <= value < 4096)):
-                    raise ValueError('DAQ potential out of range')
+                    raise ValueError('DAC voltage out of range')
         data = (value * self.dacGain / 1000.0 + self.dacOffset + 4096) * 2
         if self.vHW == "s":
             if data < 0:
@@ -299,11 +299,14 @@ class DAQ:
         Set the raw value into DAC without data conversion.
 
         Args:
-            raw: variable with the raw data.
+            raw: RAW binary ADC data value.
+        Raises:
+            ValueError: An error ocurred when voltage is out of range
+            print 'DAC voltage out of range'.
         """
         value = int(round(raw))
         if not 0 < value < 16384:
-            raise ValueError('DAQ voltage out of range')
+            raise ValueError('DAC voltage out of range')
         cmd = struct.pack('>BBH', 24, 2, value)
         return self.send_command(cmd, 'h')[0]
 
