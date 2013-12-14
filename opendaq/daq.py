@@ -92,7 +92,7 @@ class DAQ:
 
     def open(self):
         """
-        Open serial port.
+        Open the serial port.
 
         Configure serial port to be opened.
         """
@@ -102,7 +102,7 @@ class DAQ:
 
     def close(self):
         """
-        Close serial port.
+        Close the serial port.
 
         Configure serial port to be closed.
         """
@@ -110,16 +110,16 @@ class DAQ:
 
     def send_command(self, cmd, ret_fmt, debug=False):
         """
-        Send a command to openDAQ.
+        Command transmission pattern.
 
         Args:
-            cmd: variable that defines the command
-            ret_fmt: variable that defines the format
-            debug: variable that defines the debug mode
+            cmd: ID that defines the command (command number)
+            ret_fmt: Format of the arguments for the command (byte/int16)
+            debug: Toggle debug mode ON/OFF
         Returns:
-            The command number into variable 'data'.
+            The command ID and different arguments depending on the specific command.
         Raises:
-            LengthError: An error occurred.
+            LengthError: The legth of the response is not the expected.
         """
         # Add 'command' and 'length' fields to the format string
         fmt = '>bb' + ret_fmt
@@ -146,8 +146,14 @@ class DAQ:
 
     def get_info(self):
         """
-        Read device configuration: serial number, firmware version
+        Read device configuration: serial number, firmware version,
         and hardware version.
+        Args:
+
+        Returns:
+            Hardware version
+            Firmware version
+            Devide ID number
         """
         return self.send_command('\x27\x00', 'bbI')
 
@@ -155,7 +161,10 @@ class DAQ:
         """
         Get the hardware version.
 
-        Recognize the hardware version.
+        Args:
+
+        Returns:
+            Hardware version
         """
         return self.vHW
 
@@ -163,7 +172,12 @@ class DAQ:
         """
         Read the analog-to-digital converter.
 
-        Read data from adc and return it in 'value'.
+        Read data from ADC and return the 'RAW' value.
+
+        Args:
+
+        Returns:
+            ADC value: ADC raw value
         """
         value = self.send_command('\x01\x00', 'h')[0]
         return value
@@ -172,7 +186,12 @@ class DAQ:
         """
         Read the analog data.
 
-        Read raw data.
+        Read data from ADC and convert it to millivolts using calibration values.
+
+        Args:
+
+        Returns:
+            Analog reading: Analog value converted into millivolts.
         """
         value = self.send_command('\x01\x00', 'h')[0]
         # Raw value to voltage->
@@ -189,6 +208,12 @@ class DAQ:
         Get the parameters for configure the analog-to-digital converter.
 
         Args:
+            pinput: variable that defines the input pin
+            ninput: variable that defines the input number
+            gain: variable that defines the gain
+            nsamples: variable that defines the samples number
+        Returns:
+            ADC value: ADC raw value
             pinput: variable that defines the input pin
             ninput: variable that defines the input number
             gain: variable that defines the gain
@@ -227,9 +252,8 @@ class DAQ:
         LED switch on (green, red or orange) or switch off.
 
         Args:
-            color: variable that defines the led color (0=off, 1=green,
+            color: variable that defines the LED color (0=off, 1=green,
             2=red, 3=orange).
-
         Raises:
             ValueError: An error ocurred caused for invalid selecction,
             must be in [0,1,2,3] and print 'invalid color number'.
@@ -243,16 +267,16 @@ class DAQ:
         """
         Set DAC output voltage (milivolts value).
 
-        Set the output between the voltage hardware limits.
-        (-4.096V and +4.096V for openDAQ[M])
-        (0V and +4.096V for openDAQ[S])
+        Set the output voltage value between the voltage hardware limits.
+        Device calibration values are used for the calculation.
+        Range: -4.096V to +4.096V for openDAQ[M]
+        Range: 0V to +4.096V for openDAQ[S]
 
         Args:
-            volts: variable that defines the output value.
-
+            volts: value in volts to be set at the DAC output.
         Raises:
             ValueError: An error ocurred when voltage is out of range
-            and print 'DAQ voltage out of range'.
+            print 'DAQ potential out of range'.
         """
         value = int(round(volts*1000))
         if (
@@ -270,9 +294,9 @@ class DAQ:
 
     def set_dac(self, raw):
         """
-        Set DAC with raw value.
+        Set DAC with a raw binary value.
 
-        Set the raw value into DAC before conditioning the data.
+        Set the raw value into DAC without data conversion.
 
         Args:
             raw: variable with the raw data.
@@ -285,32 +309,37 @@ class DAQ:
 
     def set_port_dir(self, output):
         """
-        Configure/Read all PIOs directions.
-
+        Configure all DIO directions
+        Set the direction of all D1-D6 terminals.
+       
         Args:
-            output: variable that defines PIOs direction values
-            (0 inputs, 1 outputs).
+            output: Port direction value byte
+            (flags: 0 inputs, 1 outputs).
         """
         cmd = struct.pack('BBB', 9, 1, output)
         return self.send_command(cmd, 'B')[0]
 
     def set_port(self, value):
         """
-        Write/Read all PIOs in a port.
+        Write all DIO values
+        Set the value of all D1-D6 terminals.
 
         Args:
-            value: variable that defines PIOs output value.
+            value: Port output value byte
+            (flags: 0 low, 1 high).
         """
         cmd = struct.pack('BBB', 7, 1, value)
         return self.send_command(cmd, 'B')[0]
 
     def set_pio_dir(self, number, output):
         """
-        Configure PIO direction.
+        Configure DIO direction.
+
+        Set the direction of a specific DIO terminal (D1-D6) 
 
         Args:
-            number: variable that defines the PIO number.
-            output: variable that defines PIO direction (0 input, 1 output).
+            number: variable that defines the DIO number.
+            output: variable that defines DIO direction (0 input, 1 output).
         Raises:
             ValueError: An error ocurred when the PIO number doesnt exist,
             and print 'Invalid PIO number'.
@@ -322,7 +351,9 @@ class DAQ:
 
     def set_pio(self, number, value):
         """
-        Write/Read PIO output.
+        Write DIO output.
+
+        Set the value of the DIO terminal (0: low, 1: high) 
 
         Args:
             number: variable that defines the PIO number.
@@ -341,11 +372,11 @@ class DAQ:
         Initialize the edge counter.
 
         Configure which edge increments the count:
-        Low-to-High or High-to-Low.
+        Low-to-High (1) or High-to-Low (0).
 
         Args:
             edge: variable that definess the increment mode
-            (1 Low-to-High, 0  High-to-Low).
+            (1 Low-to-High, 0 High-to-Low).
         """
         cmd = struct.pack('>BBB', 41, 1, 1)
         return self.send_command(cmd, 'B')[0]
@@ -362,10 +393,10 @@ class DAQ:
 
     def init_capture(self, period):
         """
-        Start capture mode arround a given period.
+        Start capture mode around a given period.
 
         Args:
-            period: variable that definess the aproximate period of the
+            period: variable that defines the period of the
             wave (microseconds).
         """
         cmd = struct.pack('>BBH', 14, 2, period)
@@ -388,6 +419,9 @@ class DAQ:
             - 0 Low cycle
             - 1 High cycle
             - 2 Full period
+        Returns:
+            mode:
+            Period: The period length in microseconds
         """
         cmd = struct.pack('>BBB', 16, 1, mode)
         return self.send_command(cmd, 'BH')
@@ -398,7 +432,7 @@ class DAQ:
 
         Args:
             resolution: variable that defines maximun number of ticks
-            per round [0:255].
+            per round [0:65535].
         """
         cmd = struct.pack('>BBB', 50, 1, resolution)
         return self.send_command(cmd, 'B')[0]
@@ -408,12 +442,15 @@ class DAQ:
     def get_encoder(self):
         """
         Get current encoder relative position.
+
+        Returns:
+            Position: The actual encoder value
         """
         return self.send_command('\x34\x00', 'H')
 
     def init_pwm(self, duty, period):
         """
-        Start PWM whit a given period and duty.
+        Start PWM output with a given period and duty.
 
         Args:
             duty: variable that defines the high time of the signal [0:1023]
@@ -426,17 +463,23 @@ class DAQ:
 
     def stop_pwm(self):
         """
-        Stop PWM.
+        Stops PWM.
         """
         self.send_command('\x0b\x00', '')
 
     def __get_calibration(self, gain_id):
         """
-        Read device calibration.
+        Read device calibration for a given analog configuration.
+
+        Gets calibration gain and offset for the corresponding analog configuration
 
         Args:
-            gain_id: variable that defines the gain multiplier [0:4]
-            (0 x(1/2), 1 x(1), 2 x(2, 3 x(10), 4 x(100) default(1)).
+            gain_id: variable that defines the analog configuration
+            (1-6 for openDAQ [M])
+            (1-17 for openDAQ [S])
+        Returns:
+            Gain (*100000[M] or *10000[S])
+            Offset
         """
         cmd = struct.pack('>BBB', 36, 1, gain_id)
         return self.send_command(cmd, 'BHh')
@@ -445,8 +488,11 @@ class DAQ:
         """
         Read device calibration.
 
+        Gets calibration values for all the available device configurations
+
         Returns:
-            The gains and offsets values.
+            Gains
+            Offsets
         """
         gains = []
         offsets = []
@@ -462,7 +508,8 @@ class DAQ:
         Read DAC calibration.
 
         Returns:
-            The gain and offset value.
+            DAC gain
+            DAC offset
         """
         gain_id, gain, offset = self.__get_calibration(0)
         return gain, offset
@@ -472,10 +519,8 @@ class DAQ:
         Set device calibration.
 
         Args:
-            gain_id: variable that defines the gain multiplier [0:4]
-            (0 x(1/2), 1 x(1), 2 x(2, 3 x(10), 4 x(100) default(1)).
-            gain: variable that defines gain multiplied by 100000
-            (m=Slope/100000, 0 to 0.65) [0:65535].
+            gain_id: ID of the analog configuration setup
+            gain: variable that defines gain multiplied by 100000 ([M]) or 10000 ([S])
             offset: variable that defines the offset raw value.
             [-32768:32768].
         """
@@ -485,6 +530,9 @@ class DAQ:
     def set_cal(self, gains, offsets, flag):
         """
         Set device calibration.
+
+        Write all the calibration structures into the device
+        
         """
         if flag == "M":
             for i in range(1, 6):
@@ -504,18 +552,18 @@ class DAQ:
 
     def conf_channel(self, number, mode, pinput, ninput=0, gain=1, nsamples=1):
         """
-        Configure one of the experiments (ANALOG, +IN, -IN, GAIN).
+        Configure a stream experiment (ANALOG, +IN, -IN, GAIN).
 
         Args:
             number: variable that defines the number of DataChannel
-            to assign.
+            to assign. (1-4)
             mode: variable that defines mode [0:5], 0 ANALOG_INPUT,
             1 ANALOG_OUTPUT, 2 DIGITAL_INPUT, 3 DIGITAL_OUTPUT,
             4 COUNTER_INPUT, 5 CAPTURE INPUT.
             pinput: variable that defines positive/SE analog input [1:8]
             (default 5).
             ninput: variable that defines negative analog input
-            [0, 25, 5:8] (default 0).
+            [0 (GND), 25 (2.5V Vref), 5:8] (default 0).
             gain: variable that defines gain multiplier [0:4]
             (0 x(1/2), 1 x(1), 2 x(2, 3 x(10), 4 x(100) default(1)).
             nsamples: variable that defines number of samples per point
@@ -635,7 +683,7 @@ class DAQ:
 
     def flush_stream(self, data, channel):
         """
-        Flush stream from buffer.
+        Flush stream data from buffer.
 
         Args:
            data: variable that defines the data
@@ -700,7 +748,7 @@ class DAQ:
             callback: variable that defines the callback mode
 
         Returns:
-            0 if there aren't any incoming data.
+            0 if there is not any incoming data.
             1 if data stream was processed.
             2 if no data stream received. Useful for debuging.
         """
@@ -855,17 +903,3 @@ class DAQ:
         cmd = struct.pack('>BBH', 29, 2, value)
         return self.send_command(cmd, 'H')[0]
 
-
-if __name__ == '__main__':
-    daq = DAQ('COM4')
-    daq.set_dac(3)
-    daq.create_stream(1, 500)
-    daq.conf_channel(1, 'ANALOG_INPUT', 8)
-    daq.setup_channel(1, 20)
-    daq.start()
-    data = []
-    channel = []
-    for i in xrange(40):
-        daq.get_stream(data, channel)
-    daq.flush()
-    daq.stop()
