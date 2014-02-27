@@ -382,6 +382,8 @@ class PageOne(wx.Panel):
             comunicationThread.restart()
         else:
             comunicationThread.start()
+            comunicationThread.stop()
+            self.PlayEvent(0)
 
     def StopEvent(self, event):
         self.buttonPlay.Enable(True)

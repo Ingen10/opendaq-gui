@@ -527,12 +527,13 @@ class ConfigDialog (wx.Dialog):
             self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
         self.Bind(wx.EVT_COMBOBOX, self.editch2Change, self.editch2)
         selection = frame.p.ch2[index1]
-        if selection == 25:
-            selection = 1
-        else:
-            if selection != 0:
-                selection -= 3
-        self.editch2.SetSelection(selection)
+        if frame.vHW == "m":
+            if selection == 25:
+                selection = 1
+            else:
+                if selection != 0:
+                    selection -= 3
+            self.editch2.SetSelection(selection)
         dataSizer.Add(self.editch2, pos=(1, 1))
         if frame.vHW == "m":
             self.sampleList = (
@@ -547,10 +548,12 @@ class ConfigDialog (wx.Dialog):
             self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
         self.editrange.SetSelection(frame.p.range[index1])
         dataSizer.Add(self.editrange, pos=(2, 1))
+        '''
         if frame.vHW == "s":
             self.editrange.SetValue("x1")
             self.editrange.Enable(False)
-            self.lblrange.Enable(False)
+            self.lblrange.Enable(False)'''
+            
         self.lblrate = wx.StaticText(self, label="Rate(ms)")
         dataSizer.Add(self.lblrate, pos=(0, 3))
         self.editrate = wx.TextCtrl(self, style=wx.TE_CENTRE)
@@ -579,6 +582,14 @@ class ConfigDialog (wx.Dialog):
         mainLayout.Add(dataSizer, 1, wx.EXPAND | wx.ALL, 20)
         self.SetSizerAndFit(mainLayout)
         self.editch1Change(0)
+        if frame.vHW == "s":
+            if selection != 0:
+                selection = 1
+            self.editch2.SetSelection(selection)
+            if selection != 0:
+                self.editrange.SetSelection(frame.p.range[index1])
+                self.editrange.Enable(True)
+                self.lblrange.Enable(True)
 
     def externModeEvent(self, event):
         self.editrate.Enable(not self.enableExtern.GetValue())
@@ -855,10 +866,18 @@ class InterfazPanel(wx.Panel):
             self.ch2[index1] = dlg.editch2.GetCurrentSelection()
             self.range[index1] = dlg.editrange.GetCurrentSelection()
             self.ch1[index1] += 1
-            if self.ch2[index1] == 1:
-                self.ch2[index1] = 25
-            elif self.ch2[index1] > 1:
-                self.ch2[index1] += 3
+            if frame.vHW == "m":
+                if self.ch2[index1] == 1:
+                    self.ch2[index1] = 25
+                elif self.ch2[index1] > 1:
+                    self.ch2[index1] += 3
+            if frame.vHW == "s":
+                if self.ch2[index1] > 0:
+                    value = self.ch1[index1]
+                    if value % 2:
+                        self.ch2[index1] = value + 1
+                    else:
+                        self.ch2[index1] = value - 1
             if dlg.enableExtern.GetValue() is True:
                 self.rate[index1] = int(dlg.editrate.GetLineText(0))
                 self.externFlag[index1] = 1
