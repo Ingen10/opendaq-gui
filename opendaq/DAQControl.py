@@ -115,6 +115,9 @@ class ComThread (threading.Thread):
             while self.running:
                 time.sleep(self.delay)
                 data = frame.daq.read_analog()
+                if frame.page1.versionHW == 2:
+                    data /= frame.page1.multiplierList[frame.page1.range]
+
                 frame.page1.inputValue.Clear()
                 frame.page1.inputValue.AppendText(str(data))
                 self.data_packet.append(data)
@@ -197,6 +200,7 @@ class MyCustomToolbar(NavigationToolbar2Wx):
 
 class PageOne(wx.Panel):
     def __init__(self, parent, versionHW):
+        self.multiplierList = [1, 2, 4, 5, 8, 10, 16, 20]
         wx.Panel.__init__(self, parent)
         self.versionHW = versionHW
         mainSizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -410,6 +414,8 @@ class PageOne(wx.Panel):
         else:
             self.editch2.Append("A" + str(int(value[1])+1))
         self.editch2.SetSelection(0)
+
+        #self.editrange.Enable(False)
 
 
 class PageThree(wx.Panel):

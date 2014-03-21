@@ -441,6 +441,14 @@ class StreamDialog(wx.Dialog):
         self.offsetEdit.Enable(False)
 
     def submitEvent(self, event):
+        if frame.daq.measuring:
+            dlg = wx.MessageDialog(
+                self, "openDAQ is measuring. Stop first.", "Stop first",
+                wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+            return
+
         self.burstModeFlag = self.burstMode.GetValue()
         # Check values
         if self.csvFlag:
@@ -467,13 +475,23 @@ class StreamDialog(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
             return 0
-        if self.amplitude + abs(self.offset) > 4000:
-            dlg = wx.MessageDialog(
-                self, "Maximun value can not be greater than 4000", "Error!",
-                wx.OK | wx.ICON_WARNING)
-            dlg.ShowModal()
-            dlg.Destroy()
-            return 0
+
+        # waveForm = 1 -> square
+        cond1 = (
+            frame.p.waveForm == 1 and (self.amplitude + self.offset > 4000 or (
+                self.offset < -4000)))
+
+        cond2 = (
+            frame.p.waveForm != 1 and self.amplitude + abs(self.offset) > 4000)
+
+        if cond1 or cond2:
+                dlg = wx.MessageDialog(
+                    self, "Amplitude or offset value out of range", "Error!",
+                    wx.OK | wx.ICON_WARNING)
+
+                dlg.ShowModal()
+                dlg.Destroy()
+                return 0
         if self.ton + 1 >= self.period and self.enable[1].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time on can not be greater than period", "Error!",
@@ -553,7 +571,7 @@ class ConfigDialog (wx.Dialog):
             self.editrange.SetValue("x1")
             self.editrange.Enable(False)
             self.lblrange.Enable(False)'''
-            
+
         self.lblrate = wx.StaticText(self, label="Rate(ms)")
         dataSizer.Add(self.lblrate, pos=(0, 3))
         self.editrate = wx.TextCtrl(self, style=wx.TE_CENTRE)

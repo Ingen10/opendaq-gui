@@ -84,6 +84,7 @@ class DAQ:
         """
         self.name = ""
         self.port = port
+        self.measuring = False
         self.open()
         info = self.get_info()
         self.vHW = "m" if info[0] == 1 else "s"
@@ -117,10 +118,14 @@ class DAQ:
             ret_fmt: Format of the arguments for the command (byte/int16)
             debug: Toggle debug mode ON/OFF
         Returns:
-            The command ID and different arguments depending on the specific command.
+            The command ID and different arguments depending on the specific
+            command.
         Raises:
             LengthError: The legth of the response is not the expected.
         """
+        if self.measuring:
+            self.stop()
+
         # Add 'command' and 'length' fields to the format string
         fmt = '>bb' + ret_fmt
         ret_len = 2 + struct.calcsize(fmt)
@@ -186,7 +191,8 @@ class DAQ:
         """
         Read the analog data.
 
-        Read data from ADC and convert it to millivolts using calibration values.
+        Read data from ADC and convert it to millivolts using calibration
+        values.
 
         Args:
 
@@ -314,7 +320,7 @@ class DAQ:
         """
         Configure all DIO directions
         Set the direction of all D1-D6 terminals.
-       
+
         Args:
             output: Port direction value byte
             (flags: 0 inputs, 1 outputs).
@@ -338,7 +344,7 @@ class DAQ:
         """
         Configure DIO direction.
 
-        Set the direction of a specific DIO terminal (D1-D6) 
+        Set the direction of a specific DIO terminal (D1-D6)
 
         Args:
             number: variable that defines the DIO number.
@@ -356,7 +362,7 @@ class DAQ:
         """
         Write DIO output.
 
-        Set the value of the DIO terminal (0: low, 1: high) 
+        Set the value of the DIO terminal (0: low, 1: high)
 
         Args:
             number: variable that defines the PIO number.
@@ -474,7 +480,8 @@ class DAQ:
         """
         Read device calibration for a given analog configuration.
 
-        Gets calibration gain and offset for the corresponding analog configuration
+        Gets calibration gain and offset for the corresponding analog
+        configuration
 
         Args:
             gain_id: variable that defines the analog configuration
@@ -523,7 +530,8 @@ class DAQ:
 
         Args:
             gain_id: ID of the analog configuration setup
-            gain: variable that defines gain multiplied by 100000 ([M]) or 10000 ([S])
+            gain: variable that defines gain multiplied by 100000 ([M]) or
+            10000 ([S])
             offset: variable that defines the offset raw value.
             [-32768:32768].
         """
@@ -535,7 +543,7 @@ class DAQ:
         Set device calibration.
 
         Write all the calibration structures into the device
-        
+
         """
         if flag == "M":
             for i in range(1, 6):
@@ -553,7 +561,8 @@ class DAQ:
         """
         self.__set_calibration(0, gain, offset)
 
-    def conf_channel(self, number, mode, pinput, ninput=0, gain=1, nsamples=1):
+    def conf_channel(
+            self, number, mode, pinput=1, ninput=0, gain=1, nsamples=1):
         """
         Configure a stream experiment (ANALOG, +IN, -IN, GAIN).
 
@@ -661,7 +670,7 @@ class DAQ:
             offset: variable that defines the offset.
         """
         cmd = struct.pack(
-            '>bBh%dh' % len(data), 23, len(data) * 2 + 2, offset, *data)
+            '>bBh%dH' % len(data), 23, len(data) * 2 + 2, offset, *data)
         return self.send_command(cmd, 'Bh')
 
     def start(self):
@@ -669,14 +678,21 @@ class DAQ:
         Start an automated measurement.
         """
         self.send_command('\x40\x00', '')
+        self.measuring = True
 
     def stop(self):
         """
         Stop actual measurement.
         """
-        self.send_command('\x50\x00', '')
-        time.sleep(1)
-        self.flush()
+
+        self.measuring = False
+        while True:
+            try:
+                self.send_command('\x50\x00', '')
+                break
+            except:
+                time.sleep(0.2)
+                self.flush()
 
     def flush(self):
         """
@@ -905,4 +921,3 @@ class DAQ:
         """
         cmd = struct.pack('>BBH', 29, 2, value)
         return self.send_command(cmd, 'H')[0]
-
