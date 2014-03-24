@@ -232,6 +232,7 @@ class PageOne(wx.Panel):
         self.editch2.SetSelection(0)
         grid.Add(self.editch2, pos=(1, 1))
         self.Bind(wx.EVT_COMBOBOX, self.editch1Change, self.editch1)
+        self.Bind(wx.EVT_COMBOBOX, self.editch2Change, self.editch2)
         if self.versionHW == 1:
             self.sampleList = (
                 "+-12 V", "+-4 V", "+-2 V", "+-0.4 V", "+-0.04 V")
@@ -246,6 +247,9 @@ class PageOne(wx.Panel):
             self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
         self.editrange.SetSelection(0)
         grid.Add(self.editrange, pos=(2, 1))
+        if self.versionHW == 2:
+            self.editrange.Enable(False)
+
         self.lblrate = wx.StaticText(self, label="Rate(s)")
         grid.Add(self.lblrate, pos=(3, 0))
         self.editrate = (FloatSpin(
@@ -394,8 +398,10 @@ class PageOne(wx.Panel):
         self.buttonStop.Enable(False)
         self.editch1.Enable(True)
         self.editch2.Enable(True)
-        self.editrange.Enable(True)
         self.editrate.Enable(True)
+        if self.versionHW == 1 or (self.versionHW == 2 and self.editch2.GetValue() != "AGND"):
+            self.editrange.Enable(True)
+
         frame.daq.set_led(1)
         comunicationThread.stop()
 
@@ -414,9 +420,17 @@ class PageOne(wx.Panel):
         else:
             self.editch2.Append("A" + str(int(value[1])+1))
         self.editch2.SetSelection(0)
+        self.editrange.SetSelection(0)
+        self.editrange.Enable(False)
 
-        #self.editrange.Enable(False)
-
+    def editch2Change(self, event):
+        if self.versionHW == 1:
+            return
+        if self.editch2.GetValue() == "AGND":
+            self.editrange.Enable(False)
+            self.editrange.SetSelection(0)
+        else:
+            self.editrange.Enable(True)
 
 class PageThree(wx.Panel):
     def __init__(self, parent):

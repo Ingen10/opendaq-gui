@@ -206,9 +206,9 @@ class ComThread (threading.Thread):
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
                     if frame.vHW == "s" and frame.p.ch2[self.ch[0]] != 0:
-                        multiplier_array = (2, 4, 5, 8, 10, 16, 20)
+                        multiplier_array = (1, 2, 4, 5, 8, 10, 16, 20)
                         data_int /= (
-                            multiplier_array[frame.p.range[self.ch[0]]-1])
+                            multiplier_array[frame.p.range[self.ch[0]]])
                     if frame.vHW == "m":
                         gain = -frame.gains[frame.p.range[self.ch[0]]+1]
                         offset = frame.offset[frame.p.range[self.ch[0]]+1]
