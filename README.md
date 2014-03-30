@@ -19,20 +19,15 @@ For support, e-mail to support@open-daq.com
 
 DAQControl.py
 -------------
-`DAQControl`_  is a test software application intended for demonstrating the command-response operation of openDAQ.
-
-.. _DAQControl: http://www.open-daq.com/paginas/daqcontrol
+[DAQControl](http://www.open-daq.com/paginas/daqcontrol) is a test software application intended for demonstrating the command-response operation of openDAQ.
 
 EasyDAQ.py
 -------------
-`EasyDAQ`_ is a test software application intended for demonstrating the Stream Mode operation of openDAQ.
-
-.. _EasyDAQ: http://www.open-daq.com/paginas/easydaq
+[EasyDAQ](http://www.open-daq.com/paginas/easydaq) is a test software application intended for demonstrating the Stream Mode operation of openDAQ.
 
 calibration.py
 --------------
-`calibration.py`_ is a demo intended to illustrate the process of device calibrating and checking.
+[calibration.py](http://www.open-daq.com/posts/understanding-calibration-py-demo-i) is a demo intended to illustrate the process of device calibrating and checking.
 
-.. _calibration.py: http://www.open-daq.com/posts/understanding-calibration-py-demo-ii
 
 
