@@ -322,8 +322,8 @@ class AdcPage(wx.Panel):
             if self.range == 1:  # DE
                 frame.adcgains[sel+9] = self.slope
                 frame.adcoffset[sel+9] = self.intercept
-        daq.gains = frame.adcgains
-        daq.offsets = frame.adcoffset
+        frame.daq.gains = frame.adcgains
+        frame.daq.offsets = frame.adcoffset
         self.saveCalibration()
 
     def updateDAC(self, event):
@@ -520,7 +520,8 @@ class DacPage(wx.Panel):
         frame.adcoffset[0] = self.intercept
         frame.dacgain = self.slope
         frame.dacoffset = self.intercept
-        frame.daq.set_DAC_gain_offset(self.slope, self.intercept)
+        frame.daq.dac_gain = self.slope
+        frame.daq.dac_offset = self.intercept
         self.saveCalibration()
 
     def resetEvent(self, event):
@@ -537,7 +538,9 @@ class DacPage(wx.Panel):
         frame.daq.set_dac((self.editDAC.GetValue() * 1000 + 4096) * 2)
 
     def saveCalibration(self):
-        frame.daq.set_DAC_cal(self.slope, self.intercept)
+        frame.daq.dac_gain = self.slope
+        frame.daq.dac_offset = self.intercept
+        frame.daq.set_dac_cal(self.slope, self.intercept)
 
 
 class InitThread (threading.Thread):

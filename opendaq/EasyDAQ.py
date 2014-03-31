@@ -1193,10 +1193,10 @@ class InitDlg(wx.Dialog):
 def calibration(value):
     if not -4096 <= value < 4096:
         raise ValueError('DAQ voltage out of range')
-    value *= frame.daq.dacGain
+    value *= frame.daq.dac_gain
     if frame.vHW == "s":
         value *= 2
-    data = (value / 1000.0 + frame.daq.dacOffset + 4096) * 2
+    data = (value / 1000.0 + frame.daq.dac_offset + 4096) * 2
     if frame.vHW == "s" and data < 0:
         data = 0
     return data
