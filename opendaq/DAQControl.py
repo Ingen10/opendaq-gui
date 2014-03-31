@@ -32,7 +32,7 @@ from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 import csv
 
-from daq import DAQ
+from opendaq import DAQ
 #-----------------------------------------------------------------------------
 # Find available serial ports.
 # INPUTS:
@@ -492,7 +492,7 @@ class PageThree(wx.Panel):
         frame.daq.set_port_dir(self.status)
         valueInput = frame.daq.set_port(self.values)
         for i in range(6):
-            if valueInput & (1 << i):
+            if self.status & (1 << i):
                 if self.output[i] is False:
                     self.buttons[i].SetBitmapLabel(self.imageGreen)
                 else:

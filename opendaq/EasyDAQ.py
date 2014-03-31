@@ -34,7 +34,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 
-from daq import DAQ
+from opendaq import DAQ
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -1066,7 +1066,7 @@ class MainFrame(wx.Frame):
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(commPort)
-        self.vHW = self.daq.get_vHW()
+        self.vHW = self.daq.hw_ver
         icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.statusBar = self.CreateStatusBar()

@@ -26,7 +26,7 @@ from wx.lib.agw.floatspin import FloatSpin
 import numpy
 import serial
 
-from daq import DAQ
+from opendaq import DAQ
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -51,12 +51,19 @@ def scan(num_ports=20, verbose=True):
             sys.stdout.write("port %d: " % i)
             sys.stdout.flush()
         try:
-            #-- open serial port
-            s = serial.Serial(i)
+            # -- Open serial port
+            # select which Operating system is current installed
+            plt = sys.platform
+            if plt == "linux2":
+                port = "/dev/ttyUSB%d" % i
+                s = serial.Serial(port)
+            elif plt == "win32":
+                s = serial.Serial(i)
             if verbose:
                 print "OK --> %s" % s.portstr
-            #-- If no errors, add the number and name to the list
+            # -- If no errors, add port name to the list
             serial_devices.append((i, s.portstr))
+            # -- Close port
             s.close()
         #-- Ignore possible errors
         except:
@@ -73,7 +80,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.daq = DAQ(commPort)
         self.daq.enable_crc(1)
-        self.vHW = self.daq.get_vHW()
+        self.vHW = self.daq.hw_ver
         self.adcgains = []
         self.adcoffset = []
         self.adcgains, self.adcoffset = self.daq.get_cal()
@@ -315,7 +322,8 @@ class AdcPage(wx.Panel):
             if self.range == 1:  # DE
                 frame.adcgains[sel+9] = self.slope
                 frame.adcoffset[sel+9] = self.intercept
-        frame.daq.set_gains_offsets(frame.adcgains, frame.adcoffset)
+        daq.gains = frame.adcgains
+        daq.offsets = frame.adcoffset
         self.saveCalibration()
 
     def updateDAC(self, event):
