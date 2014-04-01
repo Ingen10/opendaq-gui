@@ -75,24 +75,24 @@ def scan(num_ports=20, verbose=True):
 
 
 class MainFrame(wx.Frame):
-    def __init__(self, commPort):
+    def __init__(self, com_port):
         wx.Frame.__init__(self, None, title="openDAQ")
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-        self.daq = DAQ(commPort)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.daq = DAQ(com_port)
         self.daq.enable_crc(1)
-        self.vHW = self.daq.hw_ver
-        self.adcgains = []
-        self.adcoffset = []
-        self.adcgains, self.adcoffset = self.daq.get_cal()
-        self.dacgain = self.dacoffset = 0
-        self.dacgain, self.dacoffset = self.daq.get_dac_cal()
+        self.hw_ver = self.daq.hw_ver
+        self.adc_gains = []
+        self.adc_offset = []
+        self.adc_gains, self.adc_offset = self.daq.get_cal()
+        self.dac_gain = self.dac_offset = 0
+        self.dac_gain, self.dac_offset = self.daq.get_dac_cal()
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
         self.nb = wx.Notebook(self.p)
         # create the page windows as children of the notebook
-        self.page1 = AdcPage(self.nb, self.adcgains, self.adcoffset, self)
+        self.page1 = AdcPage(self.nb, self.adc_gains, self.adc_offset, self)
         self.page1.SetBackgroundColour('#ece9d8')
-        self.page2 = DacPage(self.nb, self.dacgain, self.dacoffset, self)
+        self.page2 = DacPage(self.nb, self.dac_gain, self.dac_offset, self)
         self.page2.SetBackgroundColour('#ece9d8')
         # add the pages to the notebook with the label to show on the tab
         self.nb.AddPage(self.page1, "ADC")
@@ -107,7 +107,7 @@ class MainFrame(wx.Frame):
         sz[0] += 10
         self.SetSize(sz)
 
-    def OnClose(self, event):
+    def on_close(self, event):
         dlg = wx.MessageDialog(
             self,
             "Do you really want to close this application?",
@@ -118,7 +118,7 @@ class MainFrame(wx.Frame):
             self.Destroy()
             frame.daq.close()
 
-    def ShowErrorParameters(self):
+    def show_error_parameters(self):
         dlg = wx.MessageDialog(
             self, "Verify parameters", "Error!", wx.OK | wx.ICON_WARNING)
         dlg.ShowModal()
@@ -129,131 +129,135 @@ class AdcPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
         self.status = self.values = 0
-        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
-        valuesSizer = wx.GridBagSizer(hgap=8, vgap=8)
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        values_sizer = wx.GridBagSizer(hgap=8, vgap=8)
         grid = wx.GridBagSizer(hgap=4, vgap=9)
         self.gains = gains
         self.offset = offset
-        gLabel = wx.StaticText(self, label="Slope")
-        offsetLabel = wx.StaticText(self, label="Intercept")
-        valuesSizer.Add(gLabel, pos=(0, 1))
-        valuesSizer.Add(offsetLabel, pos=(0, 2))
-        self.gainLabel = []
-        self.gainsEdit = []
-        self.offsetEdit = []
-        if frame.vHW == "m":
+        g_label = wx.StaticText(self, label="Slope")
+        offset_label = wx.StaticText(self, label="Intercept")
+        values_sizer.Add(g_label, pos=(0, 1))
+        values_sizer.Add(offset_label, pos=(0, 2))
+        self.gain_label = []
+        self.gains_edit = []
+        self.offset_edit = []
+        if frame.hw_ver == "m":
             for i in range(5):
-                self.gainLabel.append(wx.StaticText(
+                self.gain_label.append(wx.StaticText(
                     self, label=" Gain %d" % (i+1)))
-                self.gainsEdit.append(wx.TextCtrl(
+                self.gains_edit.append(wx.TextCtrl(
                     self, value=str(self.gains[i+1]), style=wx.TE_READONLY))
-                self.offsetEdit.append(wx.TextCtrl(
+                self.offset_edit.append(wx.TextCtrl(
                     self, value=str(self.offset[i+1]), style=wx.TE_READONLY))
-                valuesSizer.Add(self.gainLabel[i], pos=(i+1, 0))
-                valuesSizer.Add(self.gainsEdit[i], pos=(i+1, 1))
-                valuesSizer.Add(self.offsetEdit[i], pos=(i+1, 2))
-        if frame.vHW == "s":
+                values_sizer.Add(self.gain_label[i], pos=(i+1, 0))
+                values_sizer.Add(self.gains_edit[i], pos=(i+1, 1))
+                values_sizer.Add(self.offset_edit[i], pos=(i+1, 2))
+        if frame.hw_ver == "s":
             for i in range(8):
-                self.gainLabel.append(wx.StaticText(
+                self.gain_label.append(wx.StaticText(
                     self, label="    A%d " % (i+1)))
-                self.gainsEdit.append(wx.TextCtrl(
+                self.gains_edit.append(wx.TextCtrl(
                     self, value=str(self.gains[i+1]), style=wx.TE_READONLY))
-                self.offsetEdit.append(wx.TextCtrl(
+                self.offset_edit.append(wx.TextCtrl(
                     self, value=str(self.offset[i+1]), style=wx.TE_READONLY))
-                valuesSizer.Add(self.gainLabel[i], pos=(i+1, 0))
-                valuesSizer.Add(self.gainsEdit[i], pos=(i+1, 1))
-                valuesSizer.Add(self.offsetEdit[i], pos=(i+1, 2))
-        self.valueEdit = []
-        self.adcValues = []
+                values_sizer.Add(self.gain_label[i], pos=(i+1, 0))
+                values_sizer.Add(self.gains_edit[i], pos=(i+1, 1))
+                values_sizer.Add(self.offset_edit[i], pos=(i+1, 2))
+        self.value_edit = []
+        self.adc_values = []
         self.buttons = []
         for i in range(5):
-            self.valueEdit.append(FloatSpin(
+            self.value_edit.append(FloatSpin(
                 self, value=0, min_val=-4.096, max_val=4.096,
                 increment=0.001, digits=3))
-            self.adcValues.append(wx.TextCtrl(
+            self.adc_values.append(wx.TextCtrl(
                 self, value="--", style=wx.TE_READONLY))
             self.buttons.append(wx.Button(self, id=100+i, label="Update"))
-            self.Bind(wx.EVT_BUTTON, self.updateEvent, self.buttons[i])
-            grid.Add(self.valueEdit[i], pos=(i+3, 0))
-            grid.Add(self.adcValues[i], pos=(i+3, 1))
+            self.Bind(wx.EVT_BUTTON, self.update_event, self.buttons[i])
+            grid.Add(self.value_edit[i], pos=(i+3, 0))
+            grid.Add(self.adc_values[i], pos=(i+3, 1))
             grid.Add(self.buttons[i], pos=(i+3, 2))
             if i < 2:
-                self.valueEdit[i].Enable(True)
-                self.adcValues[i].Enable(True)
+                self.value_edit[i].Enable(True)
+                self.adc_values[i].Enable(True)
                 self.buttons[i].Enable(True)
             else:
                 self.buttons[i].Enable(False)
-                self.valueEdit[i].Enable(False)
-                self.adcValues[i].Enable(False)
-        self.nPointsList = []
+                self.value_edit[i].Enable(False)
+                self.adc_values[i].Enable(False)
+        self.number_points_list = []
         for i in range(4):
-            self.nPointsList.append("%d" % (i+2))
-        self.npointsLabel = wx.StaticText(self, label="Number of points")
-        self.editnpoints = wx.ComboBox(
-            self, size=(95, -1), value="2", choices=self.nPointsList,
+            self.number_points_list.append("%d" % (i+2))
+        self.number_points_label = wx.StaticText(
+            self, label="Number of points")
+        self.edit_number_points = wx.ComboBox(
+            self, size=(95, -1), value="2", choices=self.number_points_list,
             style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX, self.nPointsChange, self.editnpoints)
-        if frame.vHW == "m":
-            self.sampleList = (
+        self.Bind(
+            wx.EVT_COMBOBOX, self.number_points_change,
+            self.edit_number_points)
+        if frame.hw_ver == "m":
+            self.sample_list = (
                 "+-12 V", "+-4 V", "+-2 V", "+-0.4 V", "+-0.04 V")
-        if frame.vHW == "s":
-            self.sampleList = ("SE", "DE")
-            self.sampleList2 = []
+        if frame.hw_ver == "s":
+            self.sample_list = ("SE", "DE")
+            self.sample_list2 = []
             for i in range(1, 9):
-                self.sampleList2.append("A%d" % i)
-        self.editrange = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editrange.SetSelection(0)
-        self.Bind(wx.EVT_COMBOBOX, self.rangeChange, self.editrange)
-        grid.Add(self.editrange, pos=(1, 0))
-        if frame.vHW == "s":
+                self.sample_list2.append("A%d" % i)
+        self.edit_range = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_range.SetSelection(0)
+        self.Bind(wx.EVT_COMBOBOX, self.range_change, self.edit_range)
+        grid.Add(self.edit_range, pos=(1, 0))
+        if frame.hw_ver == "s":
             self.selection = wx.ComboBox(
-                self, size=(95, -1), choices=self.sampleList2,
+                self, size=(95, -1), choices=self.sample_list2,
                 style=wx.CB_READONLY)
             self.selection.SetSelection(0)
             grid.Add(self.selection, pos=(1, 1))
-        self.setDAC = wx.Button(self, label="Set DAC")
-        self.editDAC = FloatSpin(
+        self.set_dac = wx.Button(self, label="Set DAC")
+        self.edit_dac = FloatSpin(
             self, value=0, min_val=-4.096, max_val=4.096, increment=0.001,
             digits=3)
-        self.Bind(wx.EVT_BUTTON, self.updateDAC, self.setDAC)
-        grid.Add(self.editDAC, pos=(2, 0))
-        grid.Add(self.setDAC, pos=(2, 1))
+        self.Bind(wx.EVT_BUTTON, self.update_dac, self.set_dac)
+        grid.Add(self.edit_dac, pos=(2, 0))
+        grid.Add(self.set_dac, pos=(2, 1))
         self.update = wx.Button(self, label="Get values")
-        self.Bind(wx.EVT_BUTTON, self.getValuesEvent, self.update)
+        self.Bind(wx.EVT_BUTTON, self.get_values_event, self.update)
         grid.Add(self.update, pos=(8, 0))
         self.export = wx.Button(self, label="Export...")
-        self.Bind(wx.EVT_BUTTON, self.exportEvent, self.export)
+        self.Bind(wx.EVT_BUTTON, self.export_event, self.export)
         grid.Add(self.export, pos=(8, 1))
-        grid.Add(self.npointsLabel, pos=(0, 0))
-        grid.Add(self.editnpoints, pos=(0, 1))
-        mainSizer.Add(grid, 0, wx.ALL, border=10)
-        mainSizer.Add(valuesSizer, 0, wx.ALL, border=10)
-        self.SetSizerAndFit(mainSizer)
+        grid.Add(self.number_points_label, pos=(0, 0))
+        grid.Add(self.edit_number_points, pos=(0, 1))
+        main_sizer.Add(grid, 0, wx.ALL, border=10)
+        main_sizer.Add(values_sizer, 0, wx.ALL, border=10)
+        self.SetSizerAndFit(main_sizer)
 
-    def nPointsChange(self, event):
+    def number_points_change(self, event):
         for i in range(5):
-            if i < int(self.editnpoints.GetValue()):
-                self.valueEdit[i].Enable(True)
-                self.adcValues[i].Enable(True)
+            if i < int(self.edit_number_points.GetValue()):
+                self.value_edit[i].Enable(True)
+                self.adc_values[i].Enable(True)
                 self.buttons[i].Enable(True)
             else:
                 self.buttons[i].Enable(False)
-                self.valueEdit[i].Enable(False)
-                self.adcValues[i].Enable(False)
+                self.value_edit[i].Enable(False)
+                self.adc_values[i].Enable(False)
 
-    def rangeChange(self, event):
-        if self.editrange.GetValue() == "SE":
+    def range_change(self, event):
+        if self.edit_range.GetValue() == "SE":
             self.selection.Clear()
             for i in range(0, 8):
-                self.gainLabel[i].Label = "A%d" % (i+1)
+                self.gain_label[i].Label = "A%d" % (i+1)
                 self.selection.Append("A%d" % (i+1))
-                self.gainsEdit[i].Clear()
-                self.gainsEdit[i].AppendText(str(frame.adcgains[i+1]))
-                self.offsetEdit[i].Clear()
-                self.offsetEdit[i].AppendText(str(frame.adcoffset[i+1]))
+                self.gains_edit[i].Clear()
+                self.gains_edit[i].AppendText(str(frame.adc_gains[i+1]))
+                self.offset_edit[i].Clear()
+                self.offset_edit[i].AppendText(str(frame.adc_offset[i+1]))
             self.selection.SetSelection(0)
-        if self.editrange.GetValue() == "DE":
+        if self.edit_range.GetValue() == "DE":
             self.selection.Clear()
             for i in range(1, 9):
                 if i % 2:
@@ -261,23 +265,23 @@ class AdcPage(wx.Panel):
                 else:
                     word = "A%d" % i + "-A%d" % (i-1)
                 self.selection.Append(word)
-                self.gainLabel[i-1].Label = word
+                self.gain_label[i-1].Label = word
             self.selection.SetSelection(0)
             for i in range(8):
-                self.gainsEdit[i].Clear()
-                self.gainsEdit[i].AppendText(str(frame.adcgains[i+9]))
-                self.offsetEdit[i].Clear()
-                self.offsetEdit[i].AppendText(str(frame.adcoffset[i+9]))
+                self.gains_edit[i].Clear()
+                self.gains_edit[i].AppendText(str(frame.adc_gains[i+9]))
+                self.offset_edit[i].Clear()
+                self.offset_edit[i].AppendText(str(frame.adc_offset[i+9]))
 
-    def updateEvent(self, event):
-        self.range = self.editrange.GetCurrentSelection()
-        if frame.vHW == "s":
+    def update_event(self, event):
+        self.range = self.edit_range.GetCurrentSelection()
+        if frame.hw_ver == "s":
             input = self.selection.GetCurrentSelection()+1
         button = event.GetEventObject()
         index1 = button.GetId()-100
-        if frame.vHW == "m":
+        if frame.hw_ver == "m":
             frame.daq.conf_adc(8, 0, self.range, 20)
-        if frame.vHW == "s":
+        if frame.hw_ver == "s":
             if self.range == 0:  # SE
                 frame.daq.conf_adc(input)
             if self.range == 1:  # DE
@@ -286,73 +290,73 @@ class AdcPage(wx.Panel):
         data_int = frame.daq.read_adc()
         time.sleep(0.5)
         data_int = frame.daq.read_adc()  # Repeat for stabilizing
-        self.adcValues[index1].Clear()
-        self.adcValues[index1].AppendText(str(data_int))
+        self.adc_values[index1].Clear()
+        self.adc_values[index1].AppendText(str(data_int))
 
-    def getValuesEvent(self, event):
-        self.range = self.editrange.GetCurrentSelection()
-        if frame.vHW == "s":
+    def get_values_event(self, event):
+        self.range = self.edit_range.GetCurrentSelection()
+        if frame.hw_ver == "s":
             sel = self.selection.GetCurrentSelection()
         self.x = []
         self.y = []
-        for i in range(int(self.editnpoints.GetValue())):
-            self.y.append(int(self.valueEdit[i].GetValue() * 1000))
-            self.x.append(int(self.adcValues[i].GetLineText(0)))
+        for i in range(int(self.edit_number_points.GetValue())):
+            self.y.append(int(self.value_edit[i].GetValue() * 1000))
+            self.x.append(int(self.adc_values[i].GetLineText(0)))
         r = numpy.polyfit(self.x, self.y, 1)
-        if frame.vHW == "m":
+        if frame.hw_ver == "m":
             self.slope = abs(int(r[0] * 100000))
-        if frame.vHW == "s":
+        if frame.hw_ver == "s":
             self.slope = abs(int(r[0] * 10000))
         self.intercept = int(r[1])
-        if frame.vHW == "m":
-            self.gainsEdit[self.range].Clear()
-            self.gainsEdit[self.range].AppendText(str(self.slope))
-            self.offsetEdit[self.range].Clear()
-            self.offsetEdit[self.range].AppendText(str(self.intercept))
-            frame.adcgains[self.range+1] = self.slope
-            frame.adcoffset[self.range+1] = self.intercept
-        if frame.vHW == "s":
-            self.gainsEdit[sel].Clear()
-            self.gainsEdit[sel].AppendText(str(self.slope))
-            self.offsetEdit[sel].Clear()
-            self.offsetEdit[sel].AppendText(str(self.intercept))
+        if frame.hw_ver == "m":
+            self.gains_edit[self.range].Clear()
+            self.gains_edit[self.range].AppendText(str(self.slope))
+            self.offset_edit[self.range].Clear()
+            self.offset_edit[self.range].AppendText(str(self.intercept))
+            frame.adc_gains[self.range+1] = self.slope
+            frame.adc_offset[self.range+1] = self.intercept
+        if frame.hw_ver == "s":
+            self.gains_edit[sel].Clear()
+            self.gains_edit[sel].AppendText(str(self.slope))
+            self.offset_edit[sel].Clear()
+            self.offset_edit[sel].AppendText(str(self.intercept))
             if self.range == 0:  # SE
-                frame.adcgains[sel+1] = self.slope
-                frame.adcoffset[sel+1] = self.intercept
+                frame.adc_gains[sel+1] = self.slope
+                frame.adc_offset[sel+1] = self.intercept
             if self.range == 1:  # DE
-                frame.adcgains[sel+9] = self.slope
-                frame.adcoffset[sel+9] = self.intercept
-        frame.daq.gains = frame.adcgains
-        frame.daq.offsets = frame.adcoffset
-        self.saveCalibration()
+                frame.adc_gains[sel+9] = self.slope
+                frame.adc_offset[sel+9] = self.intercept
+        frame.daq.gains = frame.adc_gains
+        frame.daq.offsets = frame.adc_offset
+        self.save_calibration()
 
-    def updateDAC(self, event):
-        frame.daq.set_analog(self.editDAC.GetValue())
+    def update_dac(self, event):
+        frame.daq.set_analog(self.edit_dac.GetValue())
 
-    def saveCalibration(self):
+    def save_calibration(self):
         self.slope = []
         self.intercept = []
-        if frame.vHW == "m":
+        if frame.hw_ver == "m":
             for i in range(5):
-                self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
-                self.intercept.append(int(self.offsetEdit[i].GetLineText(0)))
+                self.slope.append(int(self.gains_edit[i].GetLineText(0)))
+                self.intercept.append(int(self.offset_edit[i].GetLineText(0)))
             self.flag = "M"
-        if frame.vHW == "s":
-            if self.editrange.Value == "SE":
+        if frame.hw_ver == "s":
+            if self.edit_range.Value == "SE":
                 self.flag = "SE"
                 for i in range(8):
-                    self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
+                    self.slope.append(int(self.gains_edit[i].GetLineText(0)))
                     self.intercept.append(
-                        int(self.offsetEdit[i].GetLineText(0)))
-            if self.editrange.Value == "DE":
+                        int(self.offset_edit[i].GetLineText(0)))
+            if self.edit_range.Value == "DE":
                 self.flag = "DE"
                 for i in range(8):
-                    self.slope.append(int(self.gainsEdit[i].GetLineText(0)))
+                    self.slope.append(int(self.gains_edit[i].GetLineText(0)))
                     self.intercept.append(
-                        int(self.offsetEdit[i].GetLineText(0)))
+                        int(self.offset_edit[i].GetLineText(0)))
         frame.daq.set_cal(self.slope, self.intercept, self.flag)
 
-    def exportEvent(self, event):
+    def export_event(self, event):
         dlg = wx.TextEntryDialog(
             self, 'openDAQ ID:', 'ID', style=wx.OK | wx.CANCEL)
         res = dlg.ShowModal()
@@ -360,48 +364,48 @@ class AdcPage(wx.Panel):
         dlg.Destroy()
         if res == wx.ID_CANCEL:
             return
-        self.dirname = ''
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.txt", wx.SAVE)
+            self, "Choose a file", self.directory_name, "", "*.txt", wx.SAVE)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            self.exportCalibration(
-                self.dirname+"/"+self.filename, id)
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
+            self.export_calibration(
+                self.directory_name+"/"+self.file_name, id)
         dlg.Destroy()
 
-    def exportCalibration(self, file, id):
-        outputfile = open(file, 'w')
-        model = frame.vHW.upper()
-        outputfile.write(
+    def export_calibration(self, file, id):
+        output_file = open(file, 'w')
+        model = frame.hw_ver.upper()
+        output_file.write(
             "CALIBRATION REPORT OPENDAQ-" + model + ": " + id + "\n\n")
-        outputfile.write("DAC CALIBRATION\n")
-        outputfile.write(
-            "Slope: " + str(frame.dacgain) + "    Intercept: " +
-            str(frame.dacoffset) + "\n\n")
-        outputfile.write("ADC CALIBRATION\n")
-        if frame.vHW == "s":
+        output_file.write("DAC CALIBRATION\n")
+        output_file.write(
+            "Slope: " + str(frame.dac_gain) + "    Intercept: " +
+            str(frame.dac_offset) + "\n\n")
+        output_file.write("ADC CALIBRATION\n")
+        if frame.hw_ver == "s":
             for i in range(1, 9):
-                outputfile.write("A%d:\n" % i)
-                outputfile.write(
-                    "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
-                    str(frame.adcoffset[i]) + "\n")
-            outputfile.write("\n")
+                output_file.write("A%d:\n" % i)
+                output_file.write(
+                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
+                    str(frame.adc_offset[i]) + "\n")
+            output_file.write("\n")
             for i in range(9, 17):
                 if i % 2:
                     output = "A" + str(i-8) + "-A" + str(i-7) + ":\n"
                 else:
                     output = "A" + str(i-8) + "-A" + str(i-9) + ":\n"
-                outputfile.write(output)
-                outputfile.write(
-                    "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
-                    str(frame.adcoffset[i]) + "\n")
-        if frame.vHW == "m":
+                output_file.write(output)
+                output_file.write(
+                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
+                    str(frame.adc_offset[i]) + "\n")
+        if frame.hw_ver == "m":
             for i in range(1, 6):
-                outputfile.write("Gain%d:\n" % i)
-                outputfile.write(
-                    "Slope: " + str(frame.adcgains[i]) + "    Intercept: " +
-                    str(frame.adcoffset[i]) + "\n")
+                output_file.write("Gain%d:\n" % i)
+                output_file.write(
+                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
+                    str(frame.adc_offset[i]) + "\n")
         dlg = (wx.MessageDialog(
             self, "Report saved", "Report saved", wx.OK | wx.ICON_QUESTION))
         dlg.ShowModal()
@@ -412,132 +416,135 @@ class DacPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
         self.status = self.values = 0
-        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
-        valuesSizer = wx.GridBagSizer(hgap=8, vgap=8)
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        values_sizer = wx.GridBagSizer(hgap=8, vgap=8)
         grid = wx.GridBagSizer(hgap=4, vgap=9)
-        self.realDAC = numpy.zeros(5)
-        self.readDAC = numpy.zeros(5)
+        self.real_dac = numpy.zeros(5)
+        self.read_dac = numpy.zeros(5)
         self.gain = gains
         self.offset = offset
-        gLabel = wx.StaticText(self, label="Slope")
-        offsetLabel = wx.StaticText(self, label="Intercept")
-        valuesSizer.Add(gLabel, pos=(0, 1))
-        valuesSizer.Add(offsetLabel, pos=(0, 2))
-        self.gainLabel = wx.StaticText(self, label=" Gain ")
-        self.gainsEdit = wx.TextCtrl(
+        g_label = wx.StaticText(self, label="Slope")
+        offset_label = wx.StaticText(self, label="Intercept")
+        values_sizer.Add(g_label, pos=(0, 1))
+        values_sizer.Add(offset_label, pos=(0, 2))
+        self.gain_label = wx.StaticText(self, label=" Gain ")
+        self.gains_edit = wx.TextCtrl(
             self, value=str(self.gain), style=wx.TE_READONLY)
-        self.offsetEdit = wx.TextCtrl(
+        self.offset_edit = wx.TextCtrl(
             self, value=str(self.offset), style=wx.TE_READONLY)
-        self.checkDAC = wx.Button(self, label="Check DAC")
-        if frame.vHW == "m":
-            self.editCheck = FloatSpin(
+        self.check_dac = wx.Button(self, label="Check DAC")
+        if frame.hw_ver == "m":
+            self.edit_check = FloatSpin(
                 self, value=0, min_val=-4.096, max_val=4.095, increment=0.001,
                 digits=3)
         else:
-            self.editCheck = FloatSpin(
+            self.edit_check = FloatSpin(
                 self, value=0, min_val=0, max_val=4.095, increment=0.001,
                 digits=3)
-        self.Bind(wx.EVT_BUTTON, self.checkDacEvent, self.checkDAC)
-        valuesSizer.Add(self.gainLabel, pos=(1, 0))
-        valuesSizer.Add(self.gainsEdit, pos=(1, 1))
-        valuesSizer.Add(self.offsetEdit, pos=(1, 2))
-        valuesSizer.Add(self.checkDAC, pos=(3, 0))
-        valuesSizer.Add(self.editCheck, pos=(3, 1))
-        self.valueEdit = []
-        self.adcValues = []
+        self.Bind(wx.EVT_BUTTON, self.check_dac_event, self.check_dac)
+        values_sizer.Add(self.gain_label, pos=(1, 0))
+        values_sizer.Add(self.gains_edit, pos=(1, 1))
+        values_sizer.Add(self.offset_edit, pos=(1, 2))
+        values_sizer.Add(self.check_dac, pos=(3, 0))
+        values_sizer.Add(self.edit_check, pos=(3, 1))
+        self.value_edit = []
+        self.adc_values = []
         self.buttons = []
         for i in range(5):
-            self.valueEdit.append(FloatSpin(
+            self.value_edit.append(FloatSpin(
                 self, value=0, min_val=-4.096, max_val=4.096,
                 increment=0.001, digits=3))
             self.buttons.append(wx.Button(self, id=100+i, label="Fix"))
-            self.Bind(wx.EVT_BUTTON, self.updateEvent, self.buttons[i])
-            grid.Add(self.valueEdit[i], pos=(i+3, 0))
+            self.Bind(wx.EVT_BUTTON, self.update_event, self.buttons[i])
+            grid.Add(self.value_edit[i], pos=(i+3, 0))
             grid.Add(self.buttons[i], pos=(i+3, 1))
             if i < 2:
-                self.valueEdit[i].Enable(True)
+                self.value_edit[i].Enable(True)
                 self.buttons[i].Enable(True)
             else:
                 self.buttons[i].Enable(False)
-                self.valueEdit[i].Enable(False)
-        self.nPointsList = []
+                self.value_edit[i].Enable(False)
+        self.number_points_list = []
         for i in range(4):
-            self.nPointsList.append("%d" % (i+2))
-        self.npointsLabel = wx.StaticText(self, label="Number of points")
-        self.editnpoints = wx.ComboBox(
-            self, size=(95, -1), value="2", choices=self.nPointsList,
+            self.number_points_list.append("%d" % (i+2))
+        self.number_points_label = wx.StaticText(
+            self, label="Number of points")
+        self.edit_number_points = wx.ComboBox(
+            self, size=(95, -1), value="2", choices=self.number_points_list,
             style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX, self.nPointsChange, self.editnpoints)
-        self.setDAC = wx.Button(self, label="Set DAC")
-        self.editDAC = FloatSpin(
+        self.Bind(
+            wx.EVT_COMBOBOX, self.number_points_change,
+            self.edit_number_points)
+        self.set_dac = wx.Button(self, label="Set DAC")
+        self.edit_dac = FloatSpin(
             self, value=0, min_val=-4.096, max_val=4.096, increment=0.001,
             digits=3)
-        self.Bind(wx.EVT_BUTTON, self.updateDAC, self.setDAC)
-        grid.Add(self.editDAC, pos=(1, 0))
-        grid.Add(self.setDAC, pos=(1, 1))
+        self.Bind(wx.EVT_BUTTON, self.update_dac, self.set_dac)
+        grid.Add(self.edit_dac, pos=(1, 0))
+        grid.Add(self.set_dac, pos=(1, 1))
         self.update = wx.Button(self, label="Get values")
-        self.Bind(wx.EVT_BUTTON, self.getValuesEvent, self.update)
+        self.Bind(wx.EVT_BUTTON, self.get_values_event, self.update)
         grid.Add(self.update, pos=(8, 0))
         self.reset = wx.Button(self, label="Reset")
-        self.Bind(wx.EVT_BUTTON, self.resetEvent, self.reset)
+        self.Bind(wx.EVT_BUTTON, self.reset_event, self.reset)
         grid.Add(self.reset, pos=(8, 1))
-        grid.Add(self.npointsLabel, pos=(0, 0))
-        grid.Add(self.editnpoints, pos=(0, 1))
-        mainSizer.Add(grid, 0, wx.ALL, border=10)
-        mainSizer.Add(valuesSizer, 0, wx.ALL, border=10)
-        self.SetSizerAndFit(mainSizer)
+        grid.Add(self.number_points_label, pos=(0, 0))
+        grid.Add(self.edit_number_points, pos=(0, 1))
+        main_sizer.Add(grid, 0, wx.ALL, border=10)
+        main_sizer.Add(values_sizer, 0, wx.ALL, border=10)
+        self.SetSizerAndFit(main_sizer)
 
-    def nPointsChange(self, event):
+    def number_points_change(self, event):
         for i in range(5):
-            if i < int(self.editnpoints.GetValue()):
-                self.valueEdit[i].Enable(True)
+            if i < int(self.edit_number_points.GetValue()):
+                self.value_edit[i].Enable(True)
                 self.buttons[i].Enable(True)
             else:
                 self.buttons[i].Enable(False)
-                self.valueEdit[i].Enable(False)
+                self.value_edit[i].Enable(False)
 
-    def updateEvent(self, event):
+    def update_event(self, event):
         index1 = event.GetEventObject().GetId()-100
-        self.realDAC[index1] = self.editDAC.GetValue()
-        self.readDAC[index1] = self.valueEdit[index1].GetValue()
-        self.valueEdit[index1].Enable(False)
+        self.real_dac[index1] = self.edit_dac.GetValue()
+        self.read_dac[index1] = self.value_edit[index1].GetValue()
+        self.value_edit[index1].Enable(False)
         self.buttons[index1].Enable(False)
 
-    def getValuesEvent(self, event):
+    def get_values_event(self, event):
         self.x = []
         self.y = []
-        for i in range(int(self.editnpoints.GetValue())):
-            self.y.append(self.realDAC[i] * 1000)
-            self.x.append(self.readDAC[i] * 1000)
+        for i in range(int(self.edit_number_points.GetValue())):
+            self.y.append(self.real_dac[i] * 1000)
+            self.x.append(self.read_dac[i] * 1000)
         r = numpy.polyfit(self.x, self.y, 1)
         self.slope = abs(int(r[0] * 1000))
         self.intercept = int(round(r[1], 0))
-        self.gainsEdit.Clear()
-        self.gainsEdit.AppendText(str(self.slope))
-        self.offsetEdit.Clear()
-        self.offsetEdit.AppendText(str(self.intercept))
-        frame.adcgains[0] = self.slope
-        frame.adcoffset[0] = self.intercept
-        frame.dacgain = self.slope
-        frame.dacoffset = self.intercept
+        self.gains_edit.Clear()
+        self.gains_edit.AppendText(str(self.slope))
+        self.offset_edit.Clear()
+        self.offset_edit.AppendText(str(self.intercept))
+        frame.adc_gains[0] = self.slope
+        frame.adc_offset[0] = self.intercept
+        frame.dac_gain = self.slope
+        frame.dac_offset = self.intercept
         frame.daq.dac_gain = self.slope
         frame.daq.dac_offset = self.intercept
-        self.saveCalibration()
+        self.save_calibration()
 
-    def resetEvent(self, event):
-        for i in range(int(self.editnpoints.GetValue())):
+    def reset_event(self, event):
+        for i in range(int(self.edit_number_points.GetValue())):
             self.buttons[i].Enable(True)
-            self.valueEdit[i].Enable(True)
-        self.realDAC = numpy.zeros(5)
-        self.readDAC = numpy.zeros(5)
+            self.value_edit[i].Enable(True)
+        self.real_dac = numpy.zeros(5)
+        self.read_dac = numpy.zeros(5)
 
-    def checkDacEvent(self, event):
-        frame.daq.set_analog(self.editCheck.GetValue())
+    def check_dac_event(self, event):
+        frame.daq.set_analog(self.edit_check.GetValue())
 
-    def updateDAC(self, event):
-        frame.daq.set_dac((self.editDAC.GetValue() * 1000 + 4096) * 2)
+    def update_dac(self, event):
+        frame.daq.set_dac((self.edit_dac.GetValue() * 1000 + 4096) * 2)
 
-    def saveCalibration(self):
+    def save_calibration(self):
         frame.daq.dac_gain = self.slope
         frame.daq.dac_offset = self.intercept
         frame.daq.set_dac_cal(self.slope, self.intercept)
@@ -560,40 +567,41 @@ class InitDlg(wx.Dialog):
         wx.Dialog.__init__(
             self, None, title="DAQControl",
             style=(wx.STAY_ON_TOP | wx.CAPTION))
-        self.hsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.vsizer = wx.BoxSizer(wx.VERTICAL)
+        self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
-        self.hsizer.Add(self.gauge, wx.EXPAND)
+        self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
         avaiable_ports = scan(num_ports=255, verbose=False)
-        self.sampleList = []
+        self.sample_list = []
         if len(avaiable_ports) != 0:
             for n, nombre in avaiable_ports:
-                self.sampleList.append(nombre)
-        self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.edithear.SetSelection(0)
-        self.hsizer.Add(self.lblhear, wx.EXPAND)
-        self.hsizer.Add(self.edithear, wx.EXPAND)
-        self.buttonOk = wx.Button(self, label="OK")
-        self.Bind(wx.EVT_BUTTON, self.okEvent, self.buttonOk)
-        self.buttonCancel = wx.Button(self, label="Cancel", pos=(115, 22))
-        self.Bind(wx.EVT_BUTTON, self.cancelEvent, self.buttonCancel)
-        self.vsizer.Add(self.hsizer, wx.EXPAND)
-        self.vsizer.Add(self.buttonOk, wx.EXPAND)
+                self.sample_list.append(nombre)
+        self.label_hear = wx.StaticText(self, label="Select Serial Port")
+        self.edit_hear = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_hear.SetSelection(0)
+        self.horizontal_sizer.Add(self.label_hear, wx.EXPAND)
+        self.horizontal_sizer.Add(self.edit_hear, wx.EXPAND)
+        self.button_ok = wx.Button(self, label="OK")
+        self.Bind(wx.EVT_BUTTON, self.ok_event, self.button_ok)
+        self.button_cancel = wx.Button(self, label="Cancel", pos=(115, 22))
+        self.Bind(wx.EVT_BUTTON, self.cancel_event, self.button_cancel)
+        self.vertical_sizer.Add(self.horizontal_sizer, wx.EXPAND)
+        self.vertical_sizer.Add(self.button_ok, wx.EXPAND)
         self.gauge.Show(False)
-        self.SetSizer(self.vsizer)
+        self.SetSizer(self.vertical_sizer)
         self.SetAutoLayout(1)
-        self.vsizer.Fit(self)
+        self.vertical_sizer.Fit(self)
 
-    def okEvent(self, event):
-        portN = self.edithear.GetCurrentSelection()
-        if portN >= 0:
-            self.buttonOk.Show(False)
-            self.edithear.Show(False)
-            self.buttonCancel.Show(False)
+    def ok_event(self, event):
+        port_number = self.edit_hear.GetCurrentSelection()
+        if port_number >= 0:
+            self.button_ok.Show(False)
+            self.edit_hear.Show(False)
+            self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sampleList[portN])
+            daq = DAQ(self.sample_list[port_number])
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(
@@ -601,7 +609,7 @@ class InitDlg(wx.Dialog):
                     wx.OK | wx.ICON_QUESTION)
                 dlg.ShowModal()
                 dlg.Destroy()
-                self.port = self.sampleList[portN]
+                self.port = self.sample_list[port_number]
                 self.EndModal(1)
             except:
                 dlg = wx.MessageDialog(
@@ -617,7 +625,7 @@ class InitDlg(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
 
-    def cancelEvent(self, event):
+    def cancel_event(self, event):
         self.port = 0
         self.EndModal(0)
 
@@ -627,14 +635,14 @@ class MyApp(wx.App):
         dial = InitDlg()
         ret = dial.ShowModal()
         dial.Destroy()
-        self.commPort = dial.port
+        self.com_port = dial.port
         self.connected = ret
         return True
 
 if __name__ == "__main__":
     app = MyApp(False)
-    if app.commPort != 0:
-        frame = MainFrame(app.commPort)
+    if app.com_port != 0:
+        frame = MainFrame(app.com_port)
         frame.Centre()
         frame.Show()
         app.MainLoop()

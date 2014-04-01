@@ -82,22 +82,22 @@ def scan(num_ports=20, verbose=True):
 class ComThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-        self.running = self.runningThread = 1
+        self.running = self.running_thread = 1
         self.x = []
         self.y = []
         self.data_packet = []
         self.delay = 0.001
 
-    def config(self, ch1, ch2, rangeV, rate):
-        frame.daq.conf_adc(ch1+1, ch2, rangeV, 20)
+    def config(self, ch_1, ch_2, rangeV, rate):
+        frame.daq.conf_adc(ch_1+1, ch_2, rangeV, 20)
         self.delay = rate / 1000.0
 
     def stop(self):
         self.running = 0
         frame.daq.set_led(1)
 
-    def stopThread(self):
-        self.runningThread = 0
+    def stop_thread(self):
+        self.running_thread = 0
 
     def restart(self):
         self.running = 1
@@ -110,30 +110,30 @@ class ComThread (threading.Thread):
         self.x = []
         self.y = []
         self.data_packet = []
-        while self.runningThread:
+        while self.running_thread:
             time.sleep(1)
             while self.running:
                 time.sleep(self.delay)
                 data = frame.daq.read_analog()
-                if frame.page1.versionHW == 2:
-                    data /= frame.page1.multiplierList[frame.page1.range]
+                if frame.page_1.hw_ver == 2:
+                    data /= frame.page_1.multiplier_list[frame.page_1.range]
 
-                frame.page1.inputValue.Clear()
-                frame.page1.inputValue.AppendText(str(data))
+                frame.page_1.input_value.Clear()
+                frame.page_1.input_value.AppendText(str(data))
                 self.data_packet.append(data)
                 self.x.append(float(data))
                 self.y.append(float((len(self.x)-1) * self.delay))
-                if(frame.page1.toolbar.mode == "pan/zoom"):
+                if(frame.page_1.toolbar.mode == "pan/zoom"):
                     continue
-                if(frame.page1.toolbar.mode == "zoom rect"):
+                if(frame.page_1.toolbar.mode == "zoom rect"):
                     continue
-                frame.page1.canvas.mpl_disconnect(frame.page1.cidUpdate)
-                frame.page1.axes.cla()
-                frame.page1.axes.grid(color='gray', linestyle='dashed')
-                frame.page1.axes.plot(self.y, self.x)
-                frame.page1.canvas.draw()
-                frame.page1.cidUpdate = frame.page1.canvas.mpl_connect(
-                    'motion_notify_event', frame.page1.UpdateStatusBar)
+                frame.page_1.canvas.mpl_disconnect(frame.page_1.cid_update)
+                frame.page_1.axes.cla()
+                frame.page_1.axes.grid(color='gray', linestyle='dashed')
+                frame.page_1.axes.plot(self.y, self.x)
+                frame.page_1.canvas.draw()
+                frame.page_1.cid_update = frame.page_1.canvas.mpl_connect(
+                    'motion_notify_event', frame.page_1.update_status_bar)
 
 
 class TimerThread (threading.Thread):
@@ -141,57 +141,57 @@ class TimerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.running = 1
         self.delay = 0.25
-        self.counterFlag = self.captureFlag = self.encoderFlag = 0
+        self.counter_flag = self.capture_flag = self.encoder_flag = 0
 
     def stop(self):
-        self.counterFlag = self.captureFlag = self.encoderFlag = 0
+        self.counter_flag = self.capture_flag = self.encoder_flag = 0
 
-    def startCounter(self):
-        self.counterFlag = 1
-        self.captureFlag = self.encoderFlag = 0
+    def start_counter(self):
+        self.counter_flag = 1
+        self.capture_flag = self.encoder_flag = 0
 
-    def startCapture(self):
-        self.counterFlag = self.encoderFlag = 0
-        self.captureFlag = 1
+    def start_capture(self):
+        self.counter_flag = self.encoder_flag = 0
+        self.capture_flag = 1
 
-    def startEncoder(self):
-        self.counterFlag = self.captureFlag = 0
-        self.encoderFlag = 1
+    def start_encoder(self):
+        self.counter_flag = self.capture_flag = 0
+        self.encoder_flag = 1
 
-    def stopThread(self):
+    def stop_thread(self):
         self.running = 0
 
     def run(self):
         self.running = 1
         while self.running:
             time.sleep(self.delay)
-            if self.counterFlag:
-                frame.page4.get_counter.Clear()
+            if self.counter_flag:
+                frame.page_4.get_counter.Clear()
                 cnt = frame.daq.get_counter(0)
-                frame.page4.get_counter.AppendText(str(cnt))
-            if self.captureFlag:
-                frame.page4.get_capture.Clear()
+                frame.page_4.get_counter.AppendText(str(cnt))
+            if self.capture_flag:
+                frame.page_4.get_capture.Clear()
                 mode, cnt = (
-                    frame.daq.get_capture(frame.page4.rb.GetSelection()))
-                frame.page4.get_capture.AppendText(str(cnt))
-            if self.encoderFlag:
+                    frame.daq.get_capture(frame.page_4.rb.GetSelection()))
+                frame.page_4.get_capture.AppendText(str(cnt))
+            if self.encoder_flag:
                 cnt = frame.daq.get_encoder()
-                frame.page4.currentPosition.Clear()
-                frame.page4.currentPosition.AppendText(str(cnt[0]))
-                if frame.page4.encoderResolution != 0:
-                    cnt = cnt[0] * 100 / frame.page4.encoderResolution
-                    frame.page4.gauge.SetValue(pos=cnt)
+                frame.page_4.current_position.Clear()
+                frame.page_4.current_position.AppendText(str(cnt[0]))
+                if frame.page_4.encoder_resolution != 0:
+                    cnt = cnt[0] * 100 / frame.page_4.encoder_resolution
+                    frame.page_4.gauge.SetValue(pos=cnt)
                 else:
-                    frame.page4.gauge.SetValue(0)
+                    frame.page_4.gauge.SetValue(0)
 
 
 class MyCustomToolbar(NavigationToolbar2Wx):
     ON_CUSTOM_LEFT = wx.NewId()
     ON_CUSTOM_RIGHT = wx.NewId()
 
-    def __init__(self, plotCanvas):
+    def __init__(self, plot_canvas):
         # create the default toolbar
-        NavigationToolbar2Wx.__init__(self, plotCanvas)
+        NavigationToolbar2Wx.__init__(self, plot_canvas)
         # remove the unwanted button
         delete_array = (8, 7, 2, 1)
         for i in delete_array:
@@ -199,96 +199,99 @@ class MyCustomToolbar(NavigationToolbar2Wx):
 
 
 class PageOne(wx.Panel):
-    def __init__(self, parent, versionHW):
-        self.multiplierList = [1, 2, 4, 5, 8, 10, 16, 20]
+    def __init__(self, parent, hw_ver):
+        self.multiplier_list = [1, 2, 4, 5, 8, 10, 16, 20]
         wx.Panel.__init__(self, parent)
-        self.versionHW = versionHW
-        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.hw_ver = hw_ver
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         grid = wx.GridBagSizer(hgap=5, vgap=5)
-        grid2 = wx.GridBagSizer(hgap=5, vgap=5)
-        hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
-        hSizer = wx.BoxSizer(wx.VERTICAL)
-        plotSizer = wx.BoxSizer(wx.VERTICAL)
-        self.inputLbl = wx.StaticBox(self, -1, 'Analog input')
-        self.inputSizer = wx.StaticBoxSizer(self.inputLbl, wx.HORIZONTAL)
-        self.sampleList = []
+        grid_2 = wx.GridBagSizer(hgap=5, vgap=5)
+        horizontal_sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
+        horizontal_sizer = wx.BoxSizer(wx.VERTICAL)
+        plot_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.input_label = wx.StaticBox(self, -1, 'Analog input')
+        self.input_sizer = wx.StaticBoxSizer(self.input_label, wx.HORIZONTAL)
+        self.sample_list = []
         for i in range(1, 9):
-            self.sampleList.append("A" + str(i))
-        self.lblch1 = wx.StaticText(self, label="Ch+")
-        grid.Add(self.lblch1, pos=(0, 0))
-        self.editch1 = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editch1.SetSelection(0)
-        grid.Add(self.editch1, pos=(0, 1))
-        if self.versionHW == 1:
-            self.sampleList = ("AGND", "VREF", "A5", "A6", "A7", "A8")
+            self.sample_list.append("A" + str(i))
+        self.label_ch_1 = wx.StaticText(self, label="Ch+")
+        grid.Add(self.label_ch_1, pos=(0, 0))
+        self.edit_ch_1 = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_ch_1.SetSelection(0)
+        grid.Add(self.edit_ch_1, pos=(0, 1))
+        if self.hw_ver == 1:
+            self.sample_list = ("AGND", "VREF", "A5", "A6", "A7", "A8")
         else:
-            if self.versionHW == 2:
-                self.sampleList = ("AGND", "A2")
-        self.lblch2 = wx.StaticText(self, label="Ch-")
-        grid.Add(self.lblch2, pos=(1, 0))
-        self.editch2 = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editch2.SetSelection(0)
-        grid.Add(self.editch2, pos=(1, 1))
-        self.Bind(wx.EVT_COMBOBOX, self.editch1Change, self.editch1)
-        self.Bind(wx.EVT_COMBOBOX, self.editch2Change, self.editch2)
-        if self.versionHW == 1:
-            self.sampleList = (
+            if self.hw_ver == 2:
+                self.sample_list = ("AGND", "A2")
+        self.label_ch_2 = wx.StaticText(self, label="Ch-")
+        grid.Add(self.label_ch_2, pos=(1, 0))
+        self.edit_ch_2 = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_ch_2.SetSelection(0)
+        grid.Add(self.edit_ch_2, pos=(1, 1))
+        self.Bind(wx.EVT_COMBOBOX, self.edit_ch_1_change, self.edit_ch_1)
+        self.Bind(wx.EVT_COMBOBOX, self.edit_ch_2_change, self.edit_ch_2)
+        if self.hw_ver == 1:
+            self.sample_list = (
                 "+-12 V", "+-4 V", "+-2 V", "+-0.4 V", "+-0.04 V")
-            self.lblrange = wx.StaticText(self, label="Range")
+            self.label_range = wx.StaticText(self, label="Range")
         else:
-            if self.versionHW == 2:
-                self.sampleList = (
+            if self.hw_ver == 2:
+                self.sample_list = (
                     "x1", "x2", "x4", "x5", "x8", "x10", "x16", "x20")
-                self.lblrange = wx.StaticText(self, label="Multiplier")
-        grid.Add(self.lblrange, pos=(2, 0))
-        self.editrange = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editrange.SetSelection(0)
-        grid.Add(self.editrange, pos=(2, 1))
-        if self.versionHW == 2:
-            self.editrange.Enable(False)
+                self.label_range = wx.StaticText(self, label="Multiplier")
+        grid.Add(self.label_range, pos=(2, 0))
+        self.edit_range = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_range.SetSelection(0)
+        grid.Add(self.edit_range, pos=(2, 1))
+        if self.hw_ver == 2:
+            self.edit_range.Enable(False)
 
-        self.lblrate = wx.StaticText(self, label="Rate(s)")
-        grid.Add(self.lblrate, pos=(3, 0))
-        self.editrate = (FloatSpin(
+        self.label_rate = wx.StaticText(self, label="Rate(s)")
+        grid.Add(self.label_rate, pos=(3, 0))
+        self.edit_rate = (FloatSpin(
             self, value=1, min_val=0.1, max_val=65.535, increment=0.1,
             digits=1))
-        grid.Add(self.editrate, pos=(3, 1))
-        self.buttonPlay = wx.Button(self, label="Play", size=(95, 25))
-        self.Bind(wx.EVT_BUTTON, self.PlayEvent, self.buttonPlay)
-        self.buttonStop = wx.Button(self, label="Stop", size=(95, 25))
-        self.Bind(wx.EVT_BUTTON, self.StopEvent, self.buttonStop)
-        self.buttonStop.Enable(False)
-        grid.Add(self.buttonPlay, pos=(4, 0))
-        grid.Add(self.buttonStop, pos=(4, 1))
-        self.lblvalue = wx.StaticText(self, label="Last value (V)")
-        grid.Add(self.lblvalue, pos=(5, 0))
-        self.inputValue = wx.TextCtrl(
+        grid.Add(self.edit_rate, pos=(3, 1))
+        self.button_play = wx.Button(self, label="Play", size=(95, 25))
+        self.Bind(wx.EVT_BUTTON, self.play_event, self.button_play)
+        self.button_stop = wx.Button(self, label="Stop", size=(95, 25))
+        self.Bind(wx.EVT_BUTTON, self.stop_event, self.button_stop)
+        self.button_stop.Enable(False)
+        grid.Add(self.button_play, pos=(4, 0))
+        grid.Add(self.button_stop, pos=(4, 1))
+        self.label_value = wx.StaticText(self, label="Last value (V)")
+        grid.Add(self.label_value, pos=(5, 0))
+        self.input_value = wx.TextCtrl(
             self, style=wx.TE_READONLY, size=(95, 25))
-        grid.Add(self.inputValue, pos=(5, 1))
-        self.inputSizer.Add(grid, 0, wx.ALL, border=10)
-        self.outputLbl = wx.StaticBox(self, -1, 'Analog output')
-        self.outputSizer = wx.StaticBoxSizer(self.outputLbl, wx.HORIZONTAL)
-        self.editvalue = FloatSpin(
+        grid.Add(self.input_value, pos=(5, 1))
+        self.input_sizer.Add(grid, 0, wx.ALL, border=10)
+        self.output_label = wx.StaticBox(self, -1, 'Analog output')
+        self.output_sizer = wx.StaticBoxSizer(self.output_label, wx.HORIZONTAL)
+        self.edit_value = FloatSpin(
             self, value=0, min_val=-4.0, max_val=4.0, increment=0.1, digits=3)
         self.Bind(
-            wx.lib.agw.floatspin.EVT_FLOATSPIN, self.sliderChange,
-            self.editvalue)
+            wx.lib.agw.floatspin.EVT_FLOATSPIN, self.slider_change,
+            self.edit_value)
         self.lblDAC = wx.StaticText(self, label="DAC value (V)")
-        grid2.Add(self.lblDAC, pos=(0, 0))
-        grid2.Add(self.editvalue, pos=(0, 3))
-        self.outputSizer.Add(grid2, 0, wx.ALL, border=10)
-        self.exportLbl = wx.StaticBox(self, -1, 'Export')
-        self.exportSizer = wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)
+        grid_2.Add(self.lblDAC, pos=(0, 0))
+        grid_2.Add(self.edit_value, pos=(0, 3))
+        self.output_sizer.Add(grid_2, 0, wx.ALL, border=10)
+        self.export_label = wx.StaticBox(self, -1, 'Export')
+        self.export_sizer = wx.StaticBoxSizer(self.export_label, wx.HORIZONTAL)
         self.png = wx.Button(self, label="As PNG file...", size=(98, 25))
-        self.Bind(wx.EVT_BUTTON, self.saveAsPNGEvent, self.png)
+        self.Bind(wx.EVT_BUTTON, self.save_as_png_event, self.png)
         self.csv = wx.Button(self, label="As CSV file...", size=(98, 25))
-        self.Bind(wx.EVT_BUTTON, self.saveAsCSVEvent, self.csv)
-        hSizer2.Add(self.png, 0, wx.ALL)
-        hSizer2.Add(self.csv, 0, wx.ALL)
-        self.exportSizer.Add(hSizer2, 0, wx.ALL, border=10)
+        self.Bind(wx.EVT_BUTTON, self.save_as_csv_event, self.csv)
+        horizontal_sizer_2.Add(self.png, 0, wx.ALL)
+        horizontal_sizer_2.Add(self.csv, 0, wx.ALL)
+        self.export_sizer.Add(horizontal_sizer_2, 0, wx.ALL, border=10)
         self.figure = Figure(facecolor='#ece9d8')
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self, -1, self.figure)
@@ -296,21 +299,21 @@ class PageOne(wx.Panel):
         self.axes.set_ylabel("Voltage (mV)", fontsize=12)
         self.canvas.SetInitialSize(size=(600, 600))
         self.add_toolbar()
-        self.cidUpdate = self.canvas.mpl_connect(
-            'motion_notify_event', self.UpdateStatusBar)
-        plotSizer.Add(self.toolbar, 0, wx.CENTER)
-        plotSizer.Add(self.canvas, 0, wx.ALL)
-        hSizer.Add(self.inputSizer, 0, wx.CENTRE)
-        hSizer.Add(self.outputSizer, 0, wx.EXPAND)
-        hSizer.Add(self.exportSizer, 0, wx.EXPAND)
-        mainSizer.Add(hSizer, 0, wx.ALL, border=10)
-        mainSizer.Add(plotSizer, 0, wx.ALL)
-        self.SetSizerAndFit(mainSizer)
+        self.cid_update = self.canvas.mpl_connect(
+            'motion_notify_event', self.update_status_bar)
+        plot_sizer.Add(self.toolbar, 0, wx.CENTER)
+        plot_sizer.Add(self.canvas, 0, wx.ALL)
+        horizontal_sizer.Add(self.input_sizer, 0, wx.CENTRE)
+        horizontal_sizer.Add(self.output_sizer, 0, wx.EXPAND)
+        horizontal_sizer.Add(self.export_sizer, 0, wx.EXPAND)
+        main_sizer.Add(horizontal_sizer, 0, wx.ALL, border=10)
+        main_sizer.Add(plot_sizer, 0, wx.ALL)
+        self.SetSizerAndFit(main_sizer)
 
-    def UpdateStatusBar(self, event):
+    def update_status_bar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            frame.statusBar.SetStatusText(
+            frame.status_bar.SetStatusText(
                 ("x= " + "%.4g" % x + "  y=" + "%.4g" % y), 1)
 
     def add_toolbar(self):
@@ -324,164 +327,167 @@ class PageOne(wx.Panel):
         # of the frame - so appearance is closer to GTK version.
         # As noted above, doesn't work for Mac.
         self.toolbar.SetSize(wx.Size(fw, th))
-        #self.mainSizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
+        #self.main_sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
         # update the axes menu on the toolbar
         self.toolbar.update()
 
-    def saveAsPNGEvent(self, event):
-        self.dirname = ''
+    def save_as_png_event(self, event):
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.png", wx.OPEN)
+            self, "Choose a file", self.directory_name, "", "*.png", wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            self.figure.savefig(self.dirname+"\\"+self.filename)
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
+            self.figure.savefig(self.directory_name+"\\"+self.file_name)
         dlg.Destroy()
 
-    def saveAsCSVEvent(self, event):
-        self.dirname = ''
+    def save_as_csv_event(self, event):
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.odq", wx.OPEN)
+            self, "Choose a file", self.directory_name, "", "*.odq", wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            with open(self.dirname+"\\"+self.filename, 'wb') as csvfile:
-                spamwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
-                for i in range(len(comunicationThread.data)):
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
+            with open(self.directory_name+"\\"+self.file_name, 'wb') as file:
+                spamwriter = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
+                for i in range(len(comunication_thread.data)):
                     spamwriter.writerow(
-                        [comunicationThread.x[i], comunicationThread.y[i]])
+                        [comunication_thread.x[i], comunication_thread.y[i]])
         dlg.Destroy()
 
-    def ZoomUp(self, event):
+    def zoom_up(self, event):
         pass
 
-    def PlayEvent(self, event):
-        self.ch1 = self.editch1.GetCurrentSelection()
-        self.ch2 = self.editch2.GetCurrentSelection()
-        self.range = self.editrange.GetCurrentSelection()
-        self.rate = self.editrate.GetValue() * 1000
-        if self.ch1 == -1:
-            frame.ShowErrorParameters()
+    def play_event(self, event):
+        self.ch_1 = self.edit_ch_1.GetCurrentSelection()
+        self.ch_2 = self.edit_ch_2.GetCurrentSelection()
+        self.range = self.edit_range.GetCurrentSelection()
+        self.rate = self.edit_rate.GetValue() * 1000
+        if self.ch_1 == -1:
+            frame.show_error_parameters()
             return
-        if self.ch2 == -1:
-            frame.ShowErrorParameters()
+        if self.ch_2 == -1:
+            frame.show_error_parameters()
             return
         if self.range == -1:
-            frame.ShowErrorParameters()
+            frame.show_error_parameters()
             return
-        if self.versionHW == 2 and self.ch2 == 1:
-            self.ch2 = self.editch2.GetValue()
-            self.ch2 = self.ch2[1]
-        if self.versionHW == 1:
-            if self.ch2 == 1:
-                self.ch2 = 25
-            elif self.ch2 > 1:
-                self.ch2 += 3
-        comunicationThread.config(
-            self.ch1, int(self.ch2), self.range, self.rate)
-        self.buttonPlay.Enable(False)
-        self.buttonStop.Enable(True)
-        self.editch1.Enable(False)
-        self.editch2.Enable(False)
-        self.editrange.Enable(False)
-        self.editrate.Enable(False)
+        if self.hw_ver == 2 and self.ch_2 == 1:
+            self.ch_2 = self.edit_ch_2.GetValue()
+            self.ch_2 = self.ch_2[1]
+        if self.hw_ver == 1:
+            if self.ch_2 == 1:
+                self.ch_2 = 25
+            elif self.ch_2 > 1:
+                self.ch_2 += 3
+        comunication_thread.config(
+            self.ch_1, int(self.ch_2), self.range, self.rate)
+        self.button_play.Enable(False)
+        self.button_stop.Enable(True)
+        self.edit_ch_1.Enable(False)
+        self.edit_ch_2.Enable(False)
+        self.edit_range.Enable(False)
+        self.edit_rate.Enable(False)
         frame.daq.set_led(3)
-        if comunicationThread.is_alive():
-            comunicationThread.restart()
+        if comunication_thread.is_alive():
+            comunication_thread.restart()
         else:
-            comunicationThread.start()
-            comunicationThread.stop()
-            self.PlayEvent(0)
+            comunication_thread.start()
+            comunication_thread.stop()
+            self.play_event(0)
 
-    def StopEvent(self, event):
-        self.buttonPlay.Enable(True)
-        self.buttonStop.Enable(False)
-        self.editch1.Enable(True)
-        self.editch2.Enable(True)
-        self.editrate.Enable(True)
-        if self.versionHW == 1 or (self.versionHW == 2 and self.editch2.GetValue() != "AGND"):
-            self.editrange.Enable(True)
+    def stop_event(self, event):
+        self.button_play.Enable(True)
+        self.button_stop.Enable(False)
+        self.edit_ch_1.Enable(True)
+        self.edit_ch_2.Enable(True)
+        self.edit_rate.Enable(True)
+        if (
+            self.hw_ver == 1
+                or (self.hw_ver == 2 and self.edit_ch_2.GetValue() != "AGND")):
+                    self.edit_range.Enable(True)
 
         frame.daq.set_led(1)
-        comunicationThread.stop()
+        comunication_thread.stop()
 
-    def sliderChange(self, event):
-        dacValue = self.editvalue.GetValue()
-        frame.daq.set_analog(dacValue)
+    def slider_change(self, event):
+        dac_value = self.edit_value.GetValue()
+        frame.daq.set_analog(dac_value)
 
-    def editch1Change(self, event):
-        if self.versionHW == 1:
+    def edit_ch_1_change(self, event):
+        if self.hw_ver == 1:
             return
-        value = self.editch1.GetValue()
-        self.editch2.Clear()
-        self.editch2.Append("AGND")
+        value = self.edit_ch_1.GetValue()
+        self.edit_ch_2.Clear()
+        self.edit_ch_2.Append("AGND")
         if (int(value[1]) % 2) == 0:
-            self.editch2.Append("A" + str(int(value[1])-1))
+            self.edit_ch_2.Append("A" + str(int(value[1])-1))
         else:
-            self.editch2.Append("A" + str(int(value[1])+1))
-        self.editch2.SetSelection(0)
-        self.editrange.SetSelection(0)
-        self.editrange.Enable(False)
+            self.edit_ch_2.Append("A" + str(int(value[1])+1))
+        self.edit_ch_2.SetSelection(0)
+        self.edit_range.SetSelection(0)
+        self.edit_range.Enable(False)
 
-    def editch2Change(self, event):
-        if self.versionHW == 1:
+    def edit_ch_2_change(self, event):
+        if self.hw_ver == 1:
             return
-        if self.editch2.GetValue() == "AGND":
-            self.editrange.Enable(False)
-            self.editrange.SetSelection(0)
+        if self.edit_ch_2.GetValue() == "AGND":
+            self.edit_range.Enable(False)
+            self.edit_range.SetSelection(0)
         else:
-            self.editrange.Enable(True)
+            self.edit_range.Enable(True)
+
 
 class PageThree(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-        index1 = 100
+        index_1 = 100
         self.rb = []
         self.label = []
         self.buttons = []
         self.output = []
         self.value = []
         self.status = self.values = 0
-        mainSizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
         bm = wx.Image("../resources/red.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
-        self.imageRed = bm.ConvertToBitmap()
+        self.image_red = bm.ConvertToBitmap()
         bm = wx.Image("../resources/green.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
-        self.imageGreen = bm.ConvertToBitmap()
+        self.image_green = bm.ConvertToBitmap()
         bm = wx.Image("../resources/switchon.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
-        self.imageSwOn = bm.ConvertToBitmap()
+        self.image_switch_on = bm.ConvertToBitmap()
         bm = wx.Image("../resources/switchoff.jpg", wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
-        self.imageSwOff = bm.ConvertToBitmap()
+        self.image_switch_off = bm.ConvertToBitmap()
         for i in range(6):
-            radioList = []
-            radioList.append("Input")
-            radioList.append("Output")
+            radio_list = []
+            radio_list.append("Input")
+            radio_list.append("Output")
             self.label.append(wx.StaticText(self, label="D%d" % (i+1)))
             self.rb.append(wx.RadioBox(
-                self, label="Select input or output?",  choices=radioList,
+                self, label="Select input or output?",  choices=radio_list,
                 majorDimension=2, style=wx.RA_SPECIFY_COLS))
             size_ = (
-                self.imageGreen.GetWidth()+5, self.imageGreen.GetHeight()+5)
+                self.image_green.GetWidth()+5, self.image_green.GetHeight()+5)
             self.buttons.append(wx.BitmapButton(
-                self, id=index1+i, bitmap=self.imageGreen, pos=(10, 20),
+                self, id=index_1+i, bitmap=self.image_green, pos=(10, 20),
                 size=size_))
             self.output.append(False)
             self.value.append(False)
-            self.Bind(wx.EVT_BUTTON, self.OutputChange, self.buttons[i])
-            self.Bind(wx.EVT_RADIOBOX, self.UpdateEvent, self.rb[i])
+            self.Bind(wx.EVT_BUTTON, self.output_change, self.buttons[i])
+            self.Bind(wx.EVT_RADIOBOX, self.update_event, self.rb[i])
             grid.Add(self.label[i], pos=(i, 0))
             grid.Add(self.rb[i], pos=(i, 1))
             grid.Add(self.buttons[i], pos=(i, 2))
-        self.buttonUpdate = wx.Button(self, label="Update", pos=(80, 420))
-        self.Bind(wx.EVT_BUTTON, self.UpdateEvent, self.buttonUpdate)
-        mainSizer.Add(grid, 0, wx.ALL, border=20)
-        self.SetSizerAndFit(mainSizer)
+        self.button_update = wx.Button(self, label="Update", pos=(80, 420))
+        self.Bind(wx.EVT_BUTTON, self.update_event, self.button_update)
+        main_sizer.Add(grid, 0, wx.ALL, border=20)
+        self.SetSizerAndFit(main_sizer)
 
-    def UpdateEvent(self, event):
+    def update_event(self, event):
         self.status = 0
         for i in range(6):
             if self.rb[i].GetSelection():
@@ -490,143 +496,148 @@ class PageThree(wx.Panel):
             else:
                 self.output[i] = False
         frame.daq.set_port_dir(self.status)
-        valueInput = frame.daq.set_port(self.values)
+        frame.daq.set_port(self.values)
         for i in range(6):
             if self.status & (1 << i):
                 if self.output[i] is False:
-                    self.buttons[i].SetBitmapLabel(self.imageGreen)
+                    self.buttons[i].SetBitmapLabel(self.image_green)
                 else:
-                    self.buttons[i].SetBitmapLabel(self.imageSwOn)
+                    self.buttons[i].SetBitmapLabel(self.image_switch_on)
             else:
                 if self.output[i] is False:
-                    self.buttons[i].SetBitmapLabel(self.imageRed)
+                    self.buttons[i].SetBitmapLabel(self.image_red)
                 else:
-                    self.buttons[i].SetBitmapLabel(self.imageSwOff)
-        frame.page4.stopCounterEvent(self)
-        frame.page4.stopPwmEvent(self)
-        frame.page4.stopCaptureEvent(self)
-        timerThread.stop()
+                    self.buttons[i].SetBitmapLabel(self.image_switch_off)
+        frame.page_4.stop_counter_event(self)
+        frame.page_4.stop_pwm_event(self)
+        frame.page_4.stop_capture_event(self)
+        timer_thread.stop()
 
-    def OutputChange(self, event):
+    def output_change(self, event):
         button = event.GetEventObject()
-        index1 = button.GetId()-100
-        if self.output[index1]:
-            if self.value[index1]:
-                self.value[index1] = False
-                button.SetBitmapLabel(self.imageSwOff)
-                self.values = self.values & ~(1 << index1)
+        index_1 = button.GetId()-100
+        if self.output[index_1]:
+            if self.value[index_1]:
+                self.value[index_1] = False
+                button.SetBitmapLabel(self.image_switch_off)
+                self.values = self.values & ~(1 << index_1)
             else:
-                self.value[index1] = True
-                button.SetBitmapLabel(self.imageSwOn)
-                self.values = self.values | (1 << index1)
+                self.value[index_1] = True
+                button.SetBitmapLabel(self.image_switch_on)
+                self.values = self.values | (1 << index_1)
         frame.daq.set_port(self.values)
 
 
 class PageFour(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-        self.pwmLbl = wx.StaticBox(self, -1, 'PWM:')
-        self.pwmgraphSizer = wx.StaticBoxSizer(self.pwmLbl, wx.VERTICAL)
-        self.captureLbl = wx.StaticBox(self, -1, 'Capture:')
-        self.capturegraphSizer = wx.StaticBoxSizer(
-            self.captureLbl, wx.VERTICAL)
-        self.counterLbl = wx.StaticBox(self, -1, 'Counter:')
-        self.countergraphSizer = wx.StaticBoxSizer(
-            self.counterLbl, wx.VERTICAL)
-        self.encoderLbl = wx.StaticBox(self, -1, 'Encoder', size=(240, 140))
-        self.encondergraphSizer = wx.StaticBoxSizer(
-            self.encoderLbl, wx.VERTICAL)
-        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
-        verticalSizer = wx.BoxSizer(wx.VERTICAL)
+        self.pwm_label = wx.StaticBox(self, -1, 'PWM:')
+        self.pwm_grap_horizontal_sizer = wx.StaticBoxSizer(
+            self.pwm_label, wx.VERTICAL)
+        self.capture_label = wx.StaticBox(self, -1, 'Capture:')
+        self.capture_grap_horizontal_sizer = wx.StaticBoxSizer(
+            self.capture_label, wx.VERTICAL)
+        self.counter_label = wx.StaticBox(self, -1, 'Counter:')
+        self.counter_grap_horizontal_sizer = wx.StaticBoxSizer(
+            self.counter_label, wx.VERTICAL)
+        self.encoder_label = wx.StaticBox(
+            self, -1, 'Encoder', size=(240, 140))
+        self.encoder_grap_horizontal_sizer = wx.StaticBoxSizer(
+            self.encoder_label, wx.VERTICAL)
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
-        pwmSizer = wx.BoxSizer(wx.VERTICAL)
-        captureSizer = wx.BoxSizer(wx.VERTICAL)
-        counterSizer = wx.BoxSizer(wx.VERTICAL)
-        encoderSizer = wx.GridBagSizer(hgap=20, vgap=20)
-        self.periodLabel = wx.StaticText(self, label="Period (us):")
-        self.dutyLabel = wx.StaticText(self, label="Duty (%):")
-        self.periodEdit = wx.TextCtrl(self, style=wx.TE_CENTRE)
-        self.dutyEdit = wx.Slider(
+        pwm_sizer = wx.BoxSizer(wx.VERTICAL)
+        capture_sizer = wx.BoxSizer(wx.VERTICAL)
+        counter_sizer = wx.BoxSizer(wx.VERTICAL)
+        encoder_sizer = wx.GridBagSizer(hgap=20, vgap=20)
+        self.period_label = wx.StaticText(self, label="Period (us):")
+        self.duty_label = wx.StaticText(self, label="Duty (%):")
+        self.period_edit = wx.TextCtrl(self, style=wx.TE_CENTRE)
+        self.duty_edit = wx.Slider(
             self, -1, 0, 0, 100, pos=(0, 0), size=(100, 50),
             style=wx.SL_HORIZONTAL | wx.SL_LABELS)
-        self.setPWM = wx.Button(self, label="Set PWM")
-        self.Bind(wx.EVT_BUTTON, self.setPWMEvent, self.setPWM)
-        self.stopPwm = wx.Button(self, label="Stop PWM")
-        self.Bind(wx.EVT_BUTTON, self.stopPwmEvent, self.stopPwm)
+        self.set_pwm = wx.Button(self, label="Set PWM")
+        self.Bind(wx.EVT_BUTTON, self.set_pwm_event, self.set_pwm)
+        self.stop_pwm = wx.Button(self, label="Stop PWM")
+        self.Bind(wx.EVT_BUTTON, self.stop_pwm_event, self.stop_pwm)
         self.get_counter = wx.TextCtrl(self, style=wx.TE_READONLY)
-        pwmSizer.Add(self.periodLabel, 0, wx.ALL, border=5)
-        pwmSizer.Add(self.periodEdit, 0, wx.ALL, border=5)
-        pwmSizer.Add(self.dutyLabel, 0, wx.ALL, border=5)
-        pwmSizer.Add(self.dutyEdit, 0, wx.ALL, border=5)
-        pwmSizer.Add(self.setPWM, 0, wx.ALL, border=5)
-        pwmSizer.Add(self.stopPwm, 0, wx.ALL, border=5)
-        self.setCounter = wx.Button(self, label="Start counter")
-        self.Bind(wx.EVT_BUTTON, self.startCounter, self.setCounter)
-        self.stopCounter = wx.Button(self, label="Stop counter")
-        self.stopCounter.Enable(False)
-        self.Bind(wx.EVT_BUTTON, self.stopCounterEvent, self.stopCounter)
-        counterSizer.Add(self.get_counter, 0, wx.ALL, border=5)
-        counterSizer.Add(self.setCounter, 0, wx.ALL, border=5)
-        counterSizer.Add(self.stopCounter, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.period_label, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.period_edit, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.duty_label, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.duty_edit, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.set_pwm, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.stop_pwm, 0, wx.ALL, border=5)
+        self.set_counter = wx.Button(self, label="Start counter")
+        self.Bind(wx.EVT_BUTTON, self.start_counter, self.set_counter)
+        self.stop_counter = wx.Button(self, label="Stop counter")
+        self.stop_counter.Enable(False)
+        self.Bind(wx.EVT_BUTTON, self.stop_counter_event, self.stop_counter)
+        counter_sizer.Add(self.get_counter, 0, wx.ALL, border=5)
+        counter_sizer.Add(self.set_counter, 0, wx.ALL, border=5)
+        counter_sizer.Add(self.stop_counter, 0, wx.ALL, border=5)
         self.get_capture = wx.TextCtrl(self, style=wx.TE_READONLY)
-        self.setCapture = wx.Button(self, label="Start capture")
-        self.Bind(wx.EVT_BUTTON, self.startCapture, self.setCapture)
-        self.stopCapture = wx.Button(self, label="Stop capture")
-        self.stopCapture.Enable(False)
-        self.Bind(wx.EVT_BUTTON, self.stopCaptureEvent, self.stopCapture)
-        radioList = ["Low time", "High time", "Full period"]
+        self.set_capture = wx.Button(self, label="Start capture")
+        self.Bind(wx.EVT_BUTTON, self.start_capture, self.set_capture)
+        self.stop_capture = wx.Button(self, label="Stop capture")
+        self.stop_capture.Enable(False)
+        self.Bind(wx.EVT_BUTTON, self.stop_capture_event, self.stop_capture)
+        radio_list = ["Low time", "High time", "Full period"]
         self.rb = wx.RadioBox(
-            self, label="Select width:", choices=radioList, majorDimension=3,
+            self, label="Select width:", choices=radio_list, majorDimension=3,
             style=wx.RA_SPECIFY_COLS)
-        captureSizer.Add(self.setCapture, 0, wx.ALL, border=5)
-        captureSizer.Add(self.get_capture, 0, wx.ALL, border=5)
-        captureSizer.Add(self.stopCapture, 0, wx.ALL, border=5)
-        captureSizer.Add(self.rb, 0, wx.ALL, border=5)
-        self.setEncoder = wx.Button(self, label='Start encoder')
-        self.Bind(wx.EVT_BUTTON, self.startEncoderEvent, self.setEncoder)
-        self.stopEncoder = wx.Button(self, label='Stop encoder')
-        self.Bind(wx.EVT_BUTTON, self.stopEncoderEvent, self.stopEncoder)
-        self.stopEncoder.Enable(False)
+        capture_sizer.Add(self.set_capture, 0, wx.ALL, border=5)
+        capture_sizer.Add(self.get_capture, 0, wx.ALL, border=5)
+        capture_sizer.Add(self.stop_capture, 0, wx.ALL, border=5)
+        capture_sizer.Add(self.rb, 0, wx.ALL, border=5)
+        self.set_encoder = wx.Button(self, label='Start encoder')
+        self.Bind(wx.EVT_BUTTON, self.start_encoder_event, self.set_encoder)
+        self.stop_encoder = wx.Button(self, label='Stop encoder')
+        self.Bind(wx.EVT_BUTTON, self.stop_encoder_event, self.stop_encoder)
+        self.stop_encoder.Enable(False)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
-        self.currentPosition = wx.TextCtrl(
+        self.current_position = wx.TextCtrl(
             self, style=wx.TE_READONLY | wx.TE_CENTRE)
-        self.encoderValue = wx.TextCtrl(self, style=wx.TE_CENTRE)
-        radioList = ["Circular", "Linear"]
-        self.modeEncoder = wx.RadioBox(
-            self, label="Select mode:", choices=radioList, majorDimension=3,
+        self.encoder_value = wx.TextCtrl(self, style=wx.TE_CENTRE)
+        radio_list = ["Circular", "Linear"]
+        self.mode_encoder = wx.RadioBox(
+            self, label="Select mode:", choices=radio_list, majorDimension=3,
             style=wx.RA_SPECIFY_COLS)
-        self.resolutionLabel = wx.StaticText(self, label="Resolution:")
-        encoderSizer.Add(self.gauge, pos=(0, 1))
-        encoderSizer.Add(self.currentPosition, pos=(0, 0))
-        encoderSizer.Add(self.modeEncoder, pos=(1, 0), span=(1, 2))
-        encoderSizer.Add(self.resolutionLabel, pos=(2, 0))
-        encoderSizer.Add(self.encoderValue, pos=(2, 1))
-        encoderSizer.Add(self.setEncoder, pos=(3, 0), span=(1, 2))
-        encoderSizer.Add(self.stopEncoder, pos=(4, 0), span=(1, 2))
-        self.pwmgraphSizer.Add(pwmSizer, 0, wx.CENTRE)
-        self.capturegraphSizer.Add(captureSizer, 0, wx.CENTRE)
-        self.countergraphSizer.Add(counterSizer, 0, wx.CENTRE)
-        self.encondergraphSizer.Add(encoderSizer, 0, wx.CENTRE)
-        grid.Add(self.pwmgraphSizer, flag=wx.EXPAND, pos=(1, 1))
-        grid.Add(self.capturegraphSizer, flag=wx.EXPAND, pos=(0, 1))
-        grid.Add(self.countergraphSizer, flag=wx.EXPAND, pos=(1, 0))
-        grid.Add(self.encondergraphSizer, flag=wx.EXPAND, pos=(0, 0))
-        verticalSizer.Add(grid, 0, wx.ALL, border=20)
-        mainSizer.Add(verticalSizer, 0, wx.ALL, border=20)
-        self.SetSizer(mainSizer)
+        self.resolution_label = wx.StaticText(self, label="Resolution:")
+        encoder_sizer.Add(self.gauge, pos=(0, 1))
+        encoder_sizer.Add(self.current_position, pos=(0, 0))
+        encoder_sizer.Add(self.mode_encoder, pos=(1, 0), span=(1, 2))
+        encoder_sizer.Add(self.resolution_label, pos=(2, 0))
+        encoder_sizer.Add(self.encoder_value, pos=(2, 1))
+        encoder_sizer.Add(self.set_encoder, pos=(3, 0), span=(1, 2))
+        encoder_sizer.Add(self.stop_encoder, pos=(4, 0), span=(1, 2))
+        self.pwm_grap_horizontal_sizer.Add(pwm_sizer, 0, wx.CENTRE)
+        self.capture_grap_horizontal_sizer.Add(capture_sizer, 0, wx.CENTRE)
+        self.counter_grap_horizontal_sizer.Add(counter_sizer, 0, wx.CENTRE)
+        self.encoder_grap_horizontal_sizer.Add(encoder_sizer, 0, wx.CENTRE)
+        grid.Add(self.pwm_grap_horizontal_sizer, flag=wx.EXPAND, pos=(1, 1))
+        grid.Add(
+            self.capture_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 1))
+        grid.Add(
+            self.counter_grap_horizontal_sizer, flag=wx.EXPAND, pos=(1, 0))
+        grid.Add(
+            self.encoder_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 0))
+        vertical_sizer.Add(grid, 0, wx.ALL, border=20)
+        main_sizer.Add(vertical_sizer, 0, wx.ALL, border=20)
+        self.SetSizer(main_sizer)
 
-    def setPWMEvent(self, event):
-        self.setCapture.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.setCounter.Enable(True)
+    def set_pwm_event(self, event):
+        self.set_capture.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.set_counter.Enable(True)
         self.get_counter.Clear()
         self.get_capture.Clear()
-        timerThread.stop()
-        string = self.periodEdit.GetLineText(0)
+        timer_thread.stop()
+        string = self.period_edit.GetLineText(0)
         if string.isdigit():
             self.period = int(string)
-            self.duty = self.dutyEdit.GetValue() * 1023 / 100
+            self.duty = self.duty_edit.GetValue() * 1023 / 100
             frame.daq.init_pwm(self.duty, self.period)
         else:
             dlg = wx.MessageDialog(
@@ -634,68 +645,69 @@ class PageFour(wx.Panel):
             dlg.ShowModal()
             dlg.Destroy()
 
-    def startCounter(self, event):
+    def start_counter(self, event):
         frame.daq.init_counter(0)
-        self.setCounter.Enable(False)
-        self.setEncoder.Enable(True)
-        self.setCapture.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(True)
-        self.stopEncoder.Enable(False)
+        self.set_counter.Enable(False)
+        self.set_encoder.Enable(True)
+        self.set_capture.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(True)
+        self.stop_encoder.Enable(False)
         self.get_capture.Clear()
-        timerThread.startCounter()
+        timer_thread.start_counter()
 
-    def startCapture(self, event):
+    def start_capture(self, event):
         frame.daq.init_capture(2000)
-        self.setCapture.Enable(False)
-        self.setEncoder.Enable(False)
-        self.stopCapture.Enable(True)
-        self.setCounter.Enable(True)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(False)
+        self.set_capture.Enable(False)
+        self.set_encoder.Enable(False)
+        self.stop_capture.Enable(True)
+        self.set_counter.Enable(True)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(False)
         self.get_counter.Clear()
-        timerThread.startCapture()
+        timer_thread.start_capture()
 
-    def stopCaptureEvent(self, event):
+    def stop_capture_event(self, event):
         frame.daq.stop_capture()
-        self.setCounter.Enable(True)
-        self.setCapture.Enable(True)
-        self.setEncoder.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(False)
-        timerThread.stop()
+        self.set_counter.Enable(True)
+        self.set_capture.Enable(True)
+        self.set_encoder.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(False)
+        timer_thread.stop()
         self.get_counter.Clear()
         self.get_capture.Clear()
 
-    def stopPwmEvent(self, event):
+    def stop_pwm_event(self, event):
         frame.daq.stop_capture()
-        self.setCounter.Enable(True)
-        self.setCapture.Enable(True)
-        self.setEncoder.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(False)
+        self.set_counter.Enable(True)
+        self.set_capture.Enable(True)
+        self.set_encoder.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(False)
         frame.daq.stop_pwm()
 
-    def stopCounterEvent(self, event):
+    def stop_counter_event(self, event):
         frame.daq.stop_capture()
-        self.setCounter.Enable(True)
-        self.setCapture.Enable(True)
-        self.setEncoder.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(False)
-        timerThread.stop()
+        self.set_counter.Enable(True)
+        self.set_capture.Enable(True)
+        self.set_encoder.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(False)
+        timer_thread.stop()
         self.get_counter.Clear()
         self.get_capture.Clear()
 
-    def startEncoderEvent(self, event):
-        if self.modeEncoder.GetSelection() == 0:
-            if self.encoderValue.GetLineText(0).isdigit():
-                self.encoderResolution = int(self.encoderValue.GetLineText(0))
-                if self.encoderResolution < 0 or \
-                        self.encoderResolution > 65535:
+    def start_encoder_event(self, event):
+        if self.mode_encoder.GetSelection() == 0:
+            if self.encoder_value.GetLineText(0).isdigit():
+                self.encoder_resolution = int(
+                    self.encoder_value.GetLineText(0))
+                if self.encoder_resolution < 0 or \
+                        self.encoder_resolution > 65535:
                         dlg = wx.MessageDialog(
                             self,
                             "Resolution can not be neither greater than 65535 \
@@ -712,27 +724,27 @@ class PageFour(wx.Panel):
                 dlg.Destroy()
                 return
         else:
-            self.encoderResolution = 0
-        self.encoderValue.Enable(False)
-        frame.daq.init_encoder(self.encoderResolution)
-        self.setCounter.Enable(True)
-        self.setCapture.Enable(True)
-        self.setEncoder.Enable(False)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(True)
-        timerThread.startEncoder()
+            self.encoder_resolution = 0
+        self.encoder_value.Enable(False)
+        frame.daq.init_encoder(self.encoder_resolution)
+        self.set_counter.Enable(True)
+        self.set_capture.Enable(True)
+        self.set_encoder.Enable(False)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(True)
+        timer_thread.start_encoder()
 
-    def stopEncoderEvent(self, event):
-        self.encoderValue.Enable(True)
+    def stop_encoder_event(self, event):
+        self.encoder_value.Enable(True)
         frame.daq.stop_encoder()
-        self.setCounter.Enable(True)
-        self.setCapture.Enable(True)
-        self.setEncoder.Enable(True)
-        self.stopCapture.Enable(False)
-        self.stopCounter.Enable(False)
-        self.stopEncoder.Enable(False)
-        timerThread.stop()
+        self.set_counter.Enable(True)
+        self.set_capture.Enable(True)
+        self.set_encoder.Enable(True)
+        self.stop_capture.Enable(False)
+        self.stop_counter.Enable(False)
+        self.stop_encoder.Enable(False)
+        timer_thread.stop()
 
 
 class MainFrame(wx.Frame):
@@ -742,38 +754,38 @@ class MainFrame(wx.Frame):
             style=wx.DEFAULT_FRAME_STYLE &
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.daq = DAQ(port)
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
         icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
-        self.statusBar = self.CreateStatusBar()
-        self.statusBar.SetFieldsCount(2)
+        self.status_bar = self.CreateStatusBar()
+        self.status_bar.SetFieldsCount(2)
         info = self.daq.get_info()
-        vHW = "[M]" if info[0] == 1 else "[S]"
-        vFW = (
+        hw_ver = "[M]" if info[0] == 1 else "[S]"
+        fw_ver = (
             str(info[1] / 100) + "." + str((info[1] / 10) % 10) + "." +
             str(info[1] % 10))
-        self.statusBar.SetStatusText("H:%s V:%s" % (vHW, vFW), 0)
+        self.status_bar.SetStatusText("H:%s V:%s" % (hw_ver, fw_ver), 0)
         # Here we create a panel and a notebook on the panel
         self.p = wx.Panel(self)
-        self.nb = wx.Notebook(self.p)
+        self.note_book = wx.Notebook(self.p)
         # create the page windows as children of the notebook
-        self.page1 = PageOne(self.nb, info[0])
-        self.page1.SetBackgroundColour('#ece9d8')
-        self.page3 = PageThree(self.nb)
-        self.page3.SetBackgroundColour('#ece9d8')
-        self.page4 = PageFour(self.nb)
-        self.page4.SetBackgroundColour('#ece9d8')
+        self.page_1 = PageOne(self.note_book, info[0])
+        self.page_1.SetBackgroundColour('#ece9d8')
+        self.page_3 = PageThree(self.note_book)
+        self.page_3.SetBackgroundColour('#ece9d8')
+        self.page_4 = PageFour(self.note_book)
+        self.page_4.SetBackgroundColour('#ece9d8')
         # add the pages to the notebook with the label to show on the tab
-        self.nb.AddPage(self.page1, "Analog I/O")
-        self.nb.AddPage(self.page3, "Digital I/O")
-        self.nb.AddPage(self.page4, "Timer-Counter")
+        self.note_book.AddPage(self.page_1, "Analog I/O")
+        self.note_book.AddPage(self.page_3, "Digital I/O")
+        self.note_book.AddPage(self.page_4, "Timer-Counter")
         # finally, put the notebook in a sizer for the panel to manage
         # the layout
         sizer = wx.BoxSizer()
-        sizer.Add(self.nb, 1, wx.EXPAND)
+        sizer.Add(self.note_book, 1, wx.EXPAND)
         self.p.SetSizer(sizer)
         self.sizer = sizer
-        sz = self.page1.GetSize()
+        sz = self.page_1.GetSize()
         sz[1] += 80
         sz[0] += 10
         self.SetSize(sz)
@@ -781,30 +793,30 @@ class MainFrame(wx.Frame):
         self.daq.set_analog(0)
         self.daq.set_port_dir(0)
 
-    def OnClose(self, event):
+    def on_close(self, event):
         dlg = wx.MessageDialog(
             self, "Do you really want to close this application?",
             "Confirm Exit", wx.OK | wx.CANCEL | wx.ICON_QUESTION)
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
-            comunicationThread.stopThread()
-            timerThread.stopThread()
+            comunication_thread.stop_thread()
+            timer_thread.stop_thread()
             self.Destroy()
             frame.daq.close()
 
-    def ShowErrorParameters(self):
+    def show_error_parameters(self):
         dlg = wx.MessageDialog(
             self, "Verify parameters", "Error!", wx.OK | wx.ICON_WARNING)
         dlg.ShowModal()
         dlg.Destroy()
 
-    def DaqError(self, number=0, foo=0):
-        errorStr = (
+    def daq_error(self, number=0, foo=0):
+        error_str = (
             "DAQ invokes an error. Line number:" + str(number) + " in " + foo +
             " function.")
         dlg = wx.MessageDialog(
-            self, errorStr, "Error!", wx.OK | wx.ICON_WARNING)
+            self, error_str, "Error!", wx.OK | wx.ICON_WARNING)
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -814,41 +826,41 @@ class InitDlg(wx.Dialog):
         wx.Dialog.__init__(
             self, None, title="DAQControl",
             style=(wx.STAY_ON_TOP | wx.CAPTION))
-        self.hsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.vsizer = wx.BoxSizer(wx.VERTICAL)
+        self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
-        self.hsizer.Add(self.gauge, wx.EXPAND)
+        self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
         avaiable_ports = scan(num_ports=255, verbose=False)
-        self.sampleList = []
+        self.sample_list = []
         if len(avaiable_ports) != 0:
             for n, nombre in avaiable_ports:
-                self.sampleList.append(nombre)
-        self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = (wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList,
+                self.sample_list.append(nombre)
+        self.label_hear = wx.StaticText(self, label="Select Serial Port")
+        self.edit_hear = (wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
             style=wx.CB_READONLY))
-        self.edithear.SetSelection(0)
-        self.hsizer.Add(self.lblhear, wx.EXPAND)
-        self.hsizer.Add(self.edithear, wx.EXPAND)
-        self.buttonOk = wx.Button(self, label="OK")
-        self.Bind(wx.EVT_BUTTON, self.okEvent, self.buttonOk)
-        self.buttonCancel = wx.Button(self, label="Cancel", pos=(115, 22))
-        self.Bind(wx.EVT_BUTTON, self.cancelEvent, self.buttonCancel)
-        self.vsizer.Add(self.hsizer, wx.EXPAND)
-        self.vsizer.Add(self.buttonOk, wx.EXPAND)
+        self.edit_hear.SetSelection(0)
+        self.horizontal_sizer.Add(self.label_hear, wx.EXPAND)
+        self.horizontal_sizer.Add(self.edit_hear, wx.EXPAND)
+        self.button_ok = wx.Button(self, label="OK")
+        self.Bind(wx.EVT_BUTTON, self.ok_event, self.button_ok)
+        self.button_cancel = wx.Button(self, label="Cancel", pos=(115, 22))
+        self.Bind(wx.EVT_BUTTON, self.cancel_event, self.button_cancel)
+        self.vertical_sizer.Add(self.horizontal_sizer, wx.EXPAND)
+        self.vertical_sizer.Add(self.button_ok, wx.EXPAND)
         self.gauge.Show(False)
-        self.SetSizer(self.vsizer)
+        self.SetSizer(self.vertical_sizer)
         self.SetAutoLayout(1)
-        self.vsizer.Fit(self)
+        self.vertical_sizer.Fit(self)
 
-    def okEvent(self, event):
-        portN = self.edithear.GetCurrentSelection()
-        if portN >= 0:
-            self.buttonOk.Show(False)
-            self.edithear.Show(False)
-            self.buttonCancel.Show(False)
+    def ok_event(self, event):
+        port_number = self.edit_hear.GetCurrentSelection()
+        if port_number >= 0:
+            self.button_ok.Show(False)
+            self.edit_hear.Show(False)
+            self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sampleList[portN])
+            daq = DAQ(self.sample_list[port_number])
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(
@@ -856,7 +868,7 @@ class InitDlg(wx.Dialog):
                     wx.OK | wx.ICON_QUESTION)
                 dlg.ShowModal()
                 dlg.Destroy()
-                self.port = self.sampleList[portN]
+                self.port = self.sample_list[port_number]
                 self.EndModal(1)
             except:
                 dlg = wx.MessageDialog(
@@ -872,7 +884,7 @@ class InitDlg(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
 
-    def cancelEvent(self, event):
+    def cancel_event(self, event):
         self.port = 0
         self.EndModal(0)
 
@@ -882,20 +894,20 @@ class MyApp(wx.App):
         dial = InitDlg()
         ret = dial.ShowModal()
         dial.Destroy()
-        self.commport = dial.port
+        self.com_port = dial.port
         self.connected = ret
         return True
 
 if __name__ == "__main__":
-    comunicationThread = ComThread()
-    timerThread = TimerThread()
-    timerThread.start()
+    comunication_thread = ComThread()
+    timer_thread = TimerThread()
+    timer_thread.start()
     app = MyApp(False)
     if app.connected:
-        frame = MainFrame(app.commport)
+        frame = MainFrame(app.com_port)
         frame.Centre()
         frame.Show()
         app.MainLoop()
     else:
-        comunicationThread.stopThread()
-        timerThread.stopThread()
+        comunication_thread.stop_thread()
+        timer_thread.stop_thread()

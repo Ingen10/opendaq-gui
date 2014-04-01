@@ -86,16 +86,16 @@ class TimerThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.running = 1
-        self.drawing = self.lastLength = self.currentLength = 0
+        self.drawing = self.last_length = self.current_length = 0
         self.delay = 0.2
 
     def stop(self):
         self.drawing = 0
 
-    def startDrawing(self):
+    def start_drawing(self):
         self.drawing = 1
 
-    def stopThread(self):
+    def stop_thread(self):
         self.running = 0
 
     def run(self):
@@ -106,26 +106,26 @@ class TimerThread (threading.Thread):
                     continue
                 if(frame.p.toolbar.mode == "zoom rect"):
                     continue
-                frame.p.canvas.mpl_disconnect(frame.p.cidUpdate)
+                frame.p.canvas.mpl_disconnect(frame.p.cid_update)
                 try:
                     frame.p.axes.clear()
                     frame.p.axes.autoscale(False)
                     frame.p.axes.grid(color='gray', linestyle='dashed')
                     for i in range(4):
                         if(len(
-                            comunicationThread.y[i]) ==
-                                len(comunicationThread.x[i])):
+                            comunication_thread.y[i]) ==
+                                len(comunication_thread.x[i])):
                                     frame.p.axes.plot(
-                                        comunicationThread.y[i],
-                                        comunicationThread.x[i],
+                                        comunication_thread.y[i],
+                                        comunication_thread.x[i],
                                         color=frame.colors[i])
                     frame.p.canvas.draw()
                     frame.p.axes.autoscale(True)
                 except:
                     print "Error trying to paint"
-                frame.p.cidUpdate = frame.p.canvas.mpl_connect(
-                    'motion_notify_event', frame.p.UpdateStatusBar)
-                self.endTime = time.time()
+                frame.p.cid_update = frame.p.canvas.mpl_connect(
+                    'motion_notify_event', frame.p.update_status_bar)
+                self.end_time = time.time()
 
 
 class ComThread (threading.Thread):
@@ -135,45 +135,45 @@ class ComThread (threading.Thread):
         self.x = [[], [], [], []]
         self.y = [[], [], [], []]
         self.data_packet = []
-        self.delay = self.threadSleep = 1
+        self.delay = self.thread_sleep = 1
         self.ch = []
 
     def stop(self):
         self.streaming = 0
-        self.stopping = self.delay = self.threadSleep = 1
+        self.stopping = self.delay = self.thread_sleep = 1
 
-    def stopThread(self):
+    def stop_thread(self):
         self.running = 0
 
     def restart(self):
-        self.initTime = time.time()
+        self.init_time = time.time()
         self.x = [[], [], [], []]
         self.y = [[], [], [], []]
         self.data_packet = []
-        frame.setVoltage(0.8)
+        frame.set_voltage(0.8)
         self.streaming = 1
         self.count = 0
         frame.daq.start()
-        timeList = []
+        time_list = []
         for i in range(4):
-            timeList.append(int(frame.p.rate[i]))
-        self.threadSleep = min(timeList)/4
+            time_list.append(int(frame.p.rate[i]))
+        self.thread_sleep = min(time_list)/4
         for i in range(3):
-            if (frame.p.enableCheck[i+1].GetValue()):
+            if (frame.p.enable_check[i+1].GetValue()):
                 value = int(frame.p.rate[i+1])
-                if value < self.threadSleep:
-                    self.threadSleep = value
-        if self.threadSleep < 10:
-            self.threadSleep = 0
+                if value < self.thread_sleep:
+                    self.thread_sleep = value
+        if self.thread_sleep < 10:
+            self.thread_sleep = 0
         else:
-            self.threadSleep /= 2000.0
+            self.thread_sleep /= 2000.0
 
     def run(self):
         self.running = 1
         self.stopping = self.streaming = 0
         self.data_packet = []
         while self.running:
-            time.sleep(self.threadSleep)
+            time.sleep(self.thread_sleep)
             if self.streaming:
                 self.data_packet = []
                 self.ch = []
@@ -193,37 +193,37 @@ class ComThread (threading.Thread):
                             self.data_packet = []
                         if ret == 3:
                             # Experiment stopped by Odaq
-                            frame.stopChannel(self.ch[0])
+                            frame.stop_channel(self.ch[0])
                         if ret == 1:
                             break
                     if ret != 1:
                         continue
                 if ret == 3:
-                    frame.stopChannel(self.ch[0])
+                    frame.stop_channel(self.ch[0])
                 self.count += 1
-                self.currentTime = time.time()
-                self.difTime = self.currentTime-self.initTime
+                self.current_time = time.time()
+                self.dif_time = self.current_time-self.init_time
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
-                    if frame.vHW == "s" and frame.p.ch2[self.ch[0]] != 0:
+                    if frame.hw_ver == "s" and frame.p.ch_2[self.ch[0]] != 0:
                         multiplier_array = (1, 2, 4, 5, 8, 10, 16, 20)
                         data_int /= (
                             multiplier_array[frame.p.range[self.ch[0]]])
-                    if frame.vHW == "m":
+                    if frame.hw_ver == "m":
                         gain = -frame.gains[frame.p.range[self.ch[0]]+1]
                         offset = frame.offset[frame.p.range[self.ch[0]]+1]
-                    if frame.vHW == "s":
-                        index1 = frame.p.ch1[self.ch[0]]
-                        if frame.p.ch2[self.ch[0]] != 0:
-                            index1 += 8
-                        gain = frame.gains[index1]
-                        offset = frame.offset[index1]
+                    if frame.hw_ver == "s":
+                        index_1 = frame.p.ch_1[self.ch[0]]
+                        if frame.p.ch_2[self.ch[0]] != 0:
+                            index_1 += 8
+                        gain = frame.gains[index_1]
+                        offset = frame.offset[index_1]
                     data = self.transform_data(float(data_int * gain)) + offset
                     self.delay = frame.p.rate[self.ch[0]]/1000.0
                     self.time = self.delay * len(self.x[self.ch[0]])
                     if self.count > (1000 / frame.p.rate[self.ch[0]]):
-                        if frame.p.externFlag[self.ch[0]] == 1:
-                            self.y[self.ch[0]].append(self.difTime)
+                        if frame.p.extern_flag[self.ch[0]] == 1:
+                            self.y[self.ch[0]].append(self.dif_time)
                         else:
                             self.y[self.ch[0]].append(self.time)
                         self.x[self.ch[0]].append(float(data))
@@ -238,7 +238,7 @@ class ComThread (threading.Thread):
                         break
                     except:
                         if self.stopping > 1:
-                            frame.p.stoppingLabel.SetLabel(
+                            frame.p.stopping_label.SetLabel(
                                 "Stopping... Please, wait")
                         print "Error trying to stop. Retrying"
                         self.stopping += 1
@@ -247,15 +247,15 @@ class ComThread (threading.Thread):
                         pass
                 for i in range(len(self.data_packet)):
                     data_int = self.data_packet[i]
-                    if frame.vHW == "m":
+                    if frame.hw_ver == "m":
                         gain = -frame.gains[frame.p.range[self.ch[i]]+1]
                         offset = frame.offset[frame.p.range[self.ch[i]]+1]
-                    if frame.vHW == "s":
-                        index1 = frame.p.ch1[self.ch[i]]
-                        if frame.p.ch2[self.ch[i]] != 0:
-                            index1 += 8
-                        gain = frame.gains[index1]
-                        offset = frame.offset[index1]
+                    if frame.hw_ver == "s":
+                        index_1 = frame.p.ch_1[self.ch[i]]
+                        if frame.p.ch_2[self.ch[i]] != 0:
+                            index_1 += 8
+                        gain = frame.gains[index_1]
+                        offset = frame.offset[index_1]
                     data_int = (
                         self.transform_data(data_int * gain) +
                         frame.offset[frame.p.range[self.ch[i]]])
@@ -267,12 +267,12 @@ class ComThread (threading.Thread):
                 frame.p.axes.grid(color='gray', linestyle='dashed')
                 for i in range(4):
                     frame.p.axes.plot(
-                        comunicationThread.y[i],
-                        comunicationThread.x[i], color=frame.colors[i])
+                        comunication_thread.y[i],
+                        comunication_thread.x[i], color=frame.colors[i])
                 frame.p.canvas.draw()
                 frame.daq.flush()
                 for i in range(4):
-                    if frame.p.enableCheck[i].GetValue():
+                    if frame.p.enable_check[i].GetValue():
                         try:
                             frame.daq.destroy_channel(i+1)
                         except:
@@ -280,14 +280,14 @@ class ComThread (threading.Thread):
                             print "Error trying to destroy channel"
                             frame.daq.close()
                             frame.daq.open()
-                frame.p.stoppingLabel.SetLabel("")
+                frame.p.stopping_label.SetLabel("")
                 self.stopping = 0
-                frame.p.buttonPlay.Enable(True)
+                frame.p.button_play.Enable(True)
 
     def transform_data(self, data):
-        if frame.vHW == "m":
+        if frame.hw_ver == "m":
             return data / 100000
-        if frame.vHW == "s":
+        if frame.hw_ver == "s":
             return data / 10000
 
 
@@ -295,132 +295,132 @@ class StreamDialog(wx.Dialog):
     def __init__(self, parent):
         # Call wxDialog's __init__ method
         wx.Dialog.__init__(self, parent, -1, 'Config', size=(200, 200))
-        boxSizer = wx.GridBagSizer(hgap=5, vgap=5)
-        mainLayout = wx.BoxSizer(wx.VERTICAL)
-        hSizer = wx.GridBagSizer(hgap=5, vgap=5)
-        self.csvFlag = self.burstModeFlag = 0
-        self.dataLbl = []
-        self.datagraphSizer = []
-        dataSizer = []
+        box_sizer = wx.GridBagSizer(hgap=5, vgap=5)
+        main_layout = wx.BoxSizer(wx.VERTICAL)
+        horizontal_sizer = wx.GridBagSizer(hgap=5, vgap=5)
+        self.csv_flag = self.burst_mode_flag = 0
+        self.data_label = []
+        self.data_grap_horizontal_sizer = []
+        data_sizer = []
         self.enable = []
-        self.periodoLabel = wx.StaticText(self, label="Period (ms)")
-        self.periodoEdit = FloatSpin(
-            self, value=frame.p.periodStreamOut, min_val=1, max_val=65535,
+        self.periodo_label = wx.StaticText(self, label="Period (ms)")
+        self.periodo_edit = FloatSpin(
+            self, value=frame.p.period_stream_out, min_val=1, max_val=65535,
             increment=100, digits=3)
-        self.offsetLabel = wx.StaticText(self, label="Offset")
-        self.offsetEdit = FloatSpin(
-            self, value=frame.p.offsetStreamOut/1000, min_val=-4.0,
+        self.offset_label = wx.StaticText(self, label="Offset")
+        self.offset_edit = FloatSpin(
+            self, value=frame.p.offset_stream_out/1000, min_val=-4.0,
             max_val=4.0, increment=0.1, digits=3)
-        self.amplitudeLabel = wx.StaticText(self, label="Amplitude")
-        self.amplitudeEdit = FloatSpin(
-            self, value=frame.p.amplitudeStreamOut/1000, min_val=0.001,
+        self.amplitude_label = wx.StaticText(self, label="Amplitude")
+        self.amplitude_edit = FloatSpin(
+            self, value=frame.p.amplitude_stream_out/1000, min_val=0.001,
             max_val=4.0, increment=0.1, digits=3)
         # Sine
         box = wx.StaticBox(self, -1, 'Sine')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[0], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.datagraphSizer[0].Add(dataSizer[0], 0, wx.ALL)
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[0], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.data_grap_horizontal_sizer[0].Add(data_sizer[0], 0, wx.ALL)
         # Square
         box = wx.StaticBox(self, -1, 'Square')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[1], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.tOnLabel = wx.StaticText(self, label="Time On")
-        self.tOnEdit = FloatSpin(
-            self, value=frame.p.tOnStreamOut, min_val=1, max_val=65535,
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[1], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.time_on_label = wx.StaticText(self, label="Time On")
+        self.time_on_edit = FloatSpin(
+            self, value=frame.p.time_on_stream_out, min_val=1, max_val=65535,
             increment=100, digits=3)
-        self.datagraphSizer[1].Add(dataSizer[1], 0, wx.ALL)
+        self.data_grap_horizontal_sizer[1].Add(data_sizer[1], 0, wx.ALL)
         # SawTooth
         box = wx.StaticBox(self, -1, 'Sawtooth')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[2], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.datagraphSizer[2].Add(dataSizer[2], 0, wx.ALL)
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[2], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.data_grap_horizontal_sizer[2].Add(data_sizer[2], 0, wx.ALL)
         # Triangle
         box = wx.StaticBox(self, -1, 'Triangle')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[3], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.tRiseLabel = wx.StaticText(self, label="Rise time")
-        self.tRiseEdit = FloatSpin(
-            self, value=frame.p.tRiseStreamOut, min_val=1, max_val=65535,
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[3], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.rise_time_label = wx.StaticText(self, label="Rise time")
+        self.rise_time_edit = FloatSpin(
+            self, value=frame.p.rise_time_stream_out, min_val=1, max_val=65535,
             increment=100, digits=3)
-        self.datagraphSizer[3].Add(dataSizer[3], 0, wx.ALL)
+        self.data_grap_horizontal_sizer[3].Add(data_sizer[3], 0, wx.ALL)
         # Fixed potential
         box = wx.StaticBox(self, -1, 'Fixed potential')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.datagraphSizer[4].Add(dataSizer[4], 0, wx.ALL)
-        hSizer.Add(self.periodoLabel, pos=(0, 0))
-        hSizer.Add(self.periodoEdit, pos=(0, 1))
-        hSizer.Add(self.offsetLabel, pos=(0, 2))
-        hSizer.Add(self.offsetEdit, pos=(0, 3))
-        hSizer.Add(self.amplitudeLabel, pos=(0, 4))
-        hSizer.Add(self.amplitudeEdit, pos=(0, 5))
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[4], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.data_grap_horizontal_sizer[4].Add(data_sizer[4], 0, wx.ALL)
+        horizontal_sizer.Add(self.periodo_label, pos=(0, 0))
+        horizontal_sizer.Add(self.periodo_edit, pos=(0, 1))
+        horizontal_sizer.Add(self.offset_label, pos=(0, 2))
+        horizontal_sizer.Add(self.offset_edit, pos=(0, 3))
+        horizontal_sizer.Add(self.amplitude_label, pos=(0, 4))
+        horizontal_sizer.Add(self.amplitude_edit, pos=(0, 5))
         for i in range(5):
             self.enable.append(wx.CheckBox(self, label='Enable', id=200+i))
-            if(frame.p.waveForm == i):
+            if(frame.p.waveform == i):
                 self.enable[i].SetValue(1)
-            if(frame.p.waveForm == 4):
-                self.amplitudeEdit.Enable(False)
-            dataSizer[i].Add(self.enable[i], 0, wx.ALL, border=10)
-            self.Bind(wx.EVT_CHECKBOX, self.enableEvent, self.enable[i])
-        dataSizer[1].Add(self.tOnLabel, 0, wx.ALL, border=10)
-        dataSizer[1].Add(self.tOnEdit, 0, wx.ALL, border=10)
-        dataSizer[3].Add(self.tRiseLabel, 0, wx.ALL, border=10)
-        dataSizer[3].Add(self.tRiseEdit, 0, wx.ALL, border=10)
-        boxSizer.Add(self.datagraphSizer[0], pos=(0, 0))
-        boxSizer.Add(self.datagraphSizer[1], pos=(0, 1))
-        boxSizer.Add(self.datagraphSizer[2], pos=(1, 0))
-        boxSizer.Add(self.datagraphSizer[3], pos=(1, 1))
-        boxSizer.Add(self.datagraphSizer[4], pos=(0, 2))
-        self.burstMode = wx.CheckBox(self, label='Period (us)')
-        self.Bind(wx.EVT_CHECKBOX, self.burstModeEvent, self.burstMode)
-        self.periodoBurstEdit = FloatSpin(
-            self, value=frame.p.periodStreamOut * 100, min_val=100,
+            if(frame.p.waveform == 4):
+                self.amplitude_edit.Enable(False)
+            data_sizer[i].Add(self.enable[i], 0, wx.ALL, border=10)
+            self.Bind(wx.EVT_CHECKBOX, self.enable_event, self.enable[i])
+        data_sizer[1].Add(self.time_on_label, 0, wx.ALL, border=10)
+        data_sizer[1].Add(self.time_on_edit, 0, wx.ALL, border=10)
+        data_sizer[3].Add(self.rise_time_label, 0, wx.ALL, border=10)
+        data_sizer[3].Add(self.rise_time_edit, 0, wx.ALL, border=10)
+        box_sizer.Add(self.data_grap_horizontal_sizer[0], pos=(0, 0))
+        box_sizer.Add(self.data_grap_horizontal_sizer[1], pos=(0, 1))
+        box_sizer.Add(self.data_grap_horizontal_sizer[2], pos=(1, 0))
+        box_sizer.Add(self.data_grap_horizontal_sizer[3], pos=(1, 1))
+        box_sizer.Add(self.data_grap_horizontal_sizer[4], pos=(0, 2))
+        self.burst_mode = wx.CheckBox(self, label='Period (us)')
+        self.Bind(wx.EVT_CHECKBOX, self.burst_mode_event, self.burst_mode)
+        self.periodo_burst_edit = FloatSpin(
+            self, value=frame.p.period_stream_out * 100, min_val=100,
             max_val=65535, increment=10, digits=0)
-        self.periodoBurstEdit.Enable(False)
-        hSizer.Add(self.burstMode, pos=(1, 0))
-        hSizer.Add(self.periodoBurstEdit, pos=(1, 1))
+        self.periodo_burst_edit.Enable(False)
+        horizontal_sizer.Add(self.burst_mode, pos=(1, 0))
+        horizontal_sizer.Add(self.periodo_burst_edit, pos=(1, 1))
         self.submit = wx.Button(self, label="Submit")
         self.csv = wx.Button(self, label="Import CSV")
-        self.Bind(wx.EVT_BUTTON, self.importEvent, self.csv)
-        self.Bind(wx.EVT_BUTTON, self.submitEvent, self.submit)
-        hSizer.Add(self.submit, pos=(2, 5))
-        hSizer.Add(self.csv, pos=(2, 0))
-        mainLayout.Add(boxSizer, 0, wx.ALL, border=10)
-        mainLayout.Add(hSizer, 0, wx.ALL, border=10)
-        self.SetSizerAndFit(mainLayout)
+        self.Bind(wx.EVT_BUTTON, self.import_event, self.csv)
+        self.Bind(wx.EVT_BUTTON, self.submit_event, self.submit)
+        horizontal_sizer.Add(self.submit, pos=(2, 5))
+        horizontal_sizer.Add(self.csv, pos=(2, 0))
+        main_layout.Add(box_sizer, 0, wx.ALL, border=10)
+        main_layout.Add(horizontal_sizer, 0, wx.ALL, border=10)
+        self.SetSizerAndFit(main_layout)
 
-    def burstModeEvent(self, event):
-        if self.burstMode.GetValue() is True:
-            self.periodoBurstEdit.Enable(True)
-            self.periodoEdit.Enable(False)
+    def burst_mode_event(self, event):
+        if self.burst_mode.GetValue() is True:
+            self.periodo_burst_edit.Enable(True)
+            self.periodo_edit.Enable(False)
         else:
-            self.periodoBurstEdit.Enable(False)
-            self.periodoEdit.Enable(True)
+            self.periodo_burst_edit.Enable(False)
+            self.periodo_edit.Enable(True)
 
-    def importEvent(self, event):
-        self.dirname = ''
+    def import_event(self, event):
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.odq", wx.OPEN)
+            self, "Choose a file", self.directory_name, "", "*.odq", wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            with open(self.dirname+"\\"+self.filename, 'rb') as csvfile:
-                reader = csv.reader(csvfile)
-                self.csvBuffer = []
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
+            with open(self.directory_name+"\\"+self.file_name, 'rb') as file:
+                reader = csv.reader(file)
+                self.csv_buffer = []
                 try:
                     for index, row in enumerate(reader):
                         for i in range(len(row)):
-                            self.csvBuffer.append(int(row[i]))
+                            self.csv_buffer.append(int(row[i]))
                 except:
                     dlg = wx.MessageDialog(
                         self, "Error importing CSV", "Error",
@@ -428,19 +428,19 @@ class StreamDialog(wx.Dialog):
                     dlg.ShowModal()
                     dlg.Destroy()
         # Calibration
-        for i in range(len(self.csvBuffer)):
-            self.csvBuffer[i] = calibration(int(round(self.csvBuffer[i])))
+        for i in range(len(self.csv_buffer)):
+            self.csv_buffer[i] = calibration(int(round(self.csv_buffer[i])))
         dlg.Destroy()
-        self.csvFlag = 1
+        self.csv_flag = 1
         for i in range(4):
             self.enable[i].SetValue(0)
             self.enable[i].Enable(False)
-        self.tOnEdit.Enable(False)
-        self.tRiseEdit.Enable(False)
-        self.amplitudeEdit.Enable(False)
-        self.offsetEdit.Enable(False)
+        self.time_on_edit.Enable(False)
+        self.rise_time_edit.Enable(False)
+        self.amplitude_edit.Enable(False)
+        self.offset_edit.Enable(False)
 
-    def submitEvent(self, event):
+    def submit_event(self, event):
         if frame.daq.measuring:
             dlg = wx.MessageDialog(
                 self, "openDAQ is measuring. Stop first.", "Stop first",
@@ -449,25 +449,25 @@ class StreamDialog(wx.Dialog):
             dlg.Destroy()
             return
 
-        self.burstModeFlag = self.burstMode.GetValue()
+        self.burst_mode_flag = self.burst_mode.GetValue()
         # Check values
-        if self.csvFlag:
-            self.period = self.periodoEdit.GetValue()
+        if self.csv_flag:
+            self.period = self.periodo_edit.GetValue()
             self.EndModal(wx.ID_OK)
             return 0
         self.signal = -1
         for i in range(5):
             if(self.enable[i].IsChecked()):
                 self.signal = i
-                frame.p.waveForm = i
-        self.amplitude = self.amplitudeEdit.GetValue() * 1000
-        self.offset = self.offsetEdit.GetValue() * 1000
-        self.ton = self.tOnEdit.GetValue()
-        self.tRise = self.tRiseEdit.GetValue()
-        if self.burstMode.GetValue():
-            self.period = self.periodoBurstEdit.GetValue() / 100
+                frame.p.waveform = i
+        self.amplitude = self.amplitude_edit.GetValue() * 1000
+        self.offset = self.offset_edit.GetValue() * 1000
+        self.ton = self.time_on_edit.GetValue()
+        self.time_rise = self.rise_time_edit.GetValue()
+        if self.burst_mode.GetValue():
+            self.period = self.periodo_burst_edit.GetValue() / 100
         else:
-            self.period = self.periodoEdit.GetValue()
+            self.period = self.periodo_edit.GetValue()
         if self.signal < 0:
             dlg = wx.MessageDialog(
                 self, "At least one signal should be selected", "Error!",
@@ -476,15 +476,15 @@ class StreamDialog(wx.Dialog):
             dlg.Destroy()
             return 0
 
-        # waveForm = 1 -> square
-        cond1 = (
-            frame.p.waveForm == 1 and (self.amplitude + self.offset > 4000 or (
+        # waveform = 1 -> square
+        cond_1 = (
+            frame.p.waveform == 1 and (self.amplitude + self.offset > 4000 or (
                 self.offset < -4000)))
 
-        cond2 = (
-            frame.p.waveForm != 1 and self.amplitude + abs(self.offset) > 4000)
+        cond_2 = (
+            frame.p.waveform != 1 and self.amplitude + abs(self.offset) > 4000)
 
-        if cond1 or cond2:
+        if cond_1 or cond_2:
                 dlg = wx.MessageDialog(
                     self, "Amplitude or offset value out of range", "Error!",
                     wx.OK | wx.ICON_WARNING)
@@ -499,7 +499,7 @@ class StreamDialog(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
             return 0
-        if self.tRise + 1 >= self.period and self.enable[3].IsChecked():
+        if self.time_rise + 1 >= self.period and self.enable[3].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time rise can not be greater than period", "Error!",
                 wx.OK | wx.ICON_WARNING)
@@ -508,113 +508,112 @@ class StreamDialog(wx.Dialog):
             return 0
         self.EndModal(wx.ID_OK)
 
-    def enableEvent(self, event):
-        index1 = event.GetEventObject().GetId()-200
-        if(self.enable[index1].IsChecked()):
+    def enable_event(self, event):
+        index_1 = event.GetEventObject().GetId()-200
+        if(self.enable[index_1].IsChecked()):
             for i in range(5):
-                if i != index1:
+                if i != index_1:
                     self.enable[i].SetValue(0)
         if(self.enable[4].IsChecked()):
-            self.amplitudeEdit.Enable(False)
+            self.amplitude_edit.Enable(False)
         else:
-            self.amplitudeEdit.Enable(True)
+            self.amplitude_edit.Enable(True)
 
 
 class ConfigDialog (wx.Dialog):
-    def __init__(self, parent, index1):
+    def __init__(self, parent, index_1):
         # Call wxDialog's __init__ method
         wx.Dialog.__init__(self, parent, -1, 'Config', size=(200, 200))
-        dataSizer = wx.GridBagSizer(hgap=5, vgap=5)
-        mainLayout = wx.BoxSizer(wx.HORIZONTAL)
-        self.sampleList = ("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8")
-        self.lblch1 = wx.StaticText(self, label="Ch+")
-        dataSizer.Add(self.lblch1, pos=(0, 0))
-        self.editch1 = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        selection = frame.p.ch1[index1] - 1
-        self.editch1.SetSelection(selection)
-        dataSizer.Add(self.editch1, pos=(0, 1))
-        self.Bind(wx.EVT_COMBOBOX, self.editch1Change, self.editch1)
-        if frame.vHW == "m":
-            self.sampleList = ("AGND", "VREF", "A5", "A6", "A7", "A8")
-        if frame.vHW == "s":
-            self.sampleList = ("AGND", "A2")
-        self.lblch2 = wx.StaticText(self, label="Ch-")
-        dataSizer.Add(self.lblch2, pos=(1, 0))
-        self.editch2 = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX, self.editch2Change, self.editch2)
-        selection = frame.p.ch2[index1]
-        if frame.vHW == "m":
+        data_sizer = wx.GridBagSizer(hgap=5, vgap=5)
+        main_layout = wx.BoxSizer(wx.HORIZONTAL)
+        self.sample_list = ("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8")
+        self.label_ch_1 = wx.StaticText(self, label="Ch+")
+        data_sizer.Add(self.label_ch_1, pos=(0, 0))
+        self.edit_ch_1 = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        selection = frame.p.ch_1[index_1] - 1
+        self.edit_ch_1.SetSelection(selection)
+        data_sizer.Add(self.edit_ch_1, pos=(0, 1))
+        self.Bind(wx.EVT_COMBOBOX, self.edit_ch_1_change, self.edit_ch_1)
+        if frame.hw_ver == "m":
+            self.sample_list = ("AGND", "VREF", "A5", "A6", "A7", "A8")
+        if frame.hw_ver == "s":
+            self.sample_list = ("AGND", "A2")
+        self.label_ch_2 = wx.StaticText(self, label="Ch-")
+        data_sizer.Add(self.label_ch_2, pos=(1, 0))
+        self.edit_ch_2 = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.Bind(wx.EVT_COMBOBOX, self.edit_ch_2_change, self.edit_ch_2)
+        selection = frame.p.ch_2[index_1]
+        if frame.hw_ver == "m":
             if selection == 25:
                 selection = 1
             else:
                 if selection != 0:
                     selection -= 3
-            self.editch2.SetSelection(selection)
-        dataSizer.Add(self.editch2, pos=(1, 1))
-        if frame.vHW == "m":
-            self.sampleList = (
+            self.edit_ch_2.SetSelection(selection)
+        data_sizer.Add(self.edit_ch_2, pos=(1, 1))
+        if frame.hw_ver == "m":
+            self.sample_list = (
                 "+-12 V", "+-4 V", "+-2 V", "+-0.4 V", "+-0.04 V")
-            self.lblrange = wx.StaticText(self, label="Range")
-        if frame.vHW == "s":
-            self.sampleList = (
+            self.label_range = wx.StaticText(self, label="Range")
+        if frame.hw_ver == "s":
+            self.sample_list = (
                 "x1", "x2", "x4", "x5", "x8", "x10", "x16", "x20")
-            self.lblrange = wx.StaticText(self, label="Multiplier")
-        dataSizer.Add(self.lblrange, pos=(2, 0))
-        self.editrange = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editrange.SetSelection(frame.p.range[index1])
-        dataSizer.Add(self.editrange, pos=(2, 1))
-        '''
-        if frame.vHW == "s":
-            self.editrange.SetValue("x1")
-            self.editrange.Enable(False)
-            self.lblrange.Enable(False)'''
+            self.label_range = wx.StaticText(self, label="Multiplier")
+        data_sizer.Add(self.label_range, pos=(2, 0))
+        self.edit_range = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_range.SetSelection(frame.p.range[index_1])
+        data_sizer.Add(self.edit_range, pos=(2, 1))
 
-        self.lblrate = wx.StaticText(self, label="Rate(ms)")
-        dataSizer.Add(self.lblrate, pos=(0, 3))
-        self.editrate = wx.TextCtrl(self, style=wx.TE_CENTRE)
-        self.editrate.AppendText(str(frame.p.rate[index1]))
-        dataSizer.Add(self.editrate, pos=(0, 4))
-        self.enableExtern = wx.CheckBox(self, label="Enable extern")
-        self.Bind(wx.EVT_CHECKBOX, self.externModeEvent, self.enableExtern)
-        self.enableExtern.SetValue(False)
-        dataSizer.Add(self.enableExtern, pos=(0, 5))
-        self.lblsamples = wx.StaticText(self, label="Samples per point")
-        dataSizer.Add(self.lblsamples, pos=(1, 3))
-        self.editsamples = wx.TextCtrl(self, style=wx.TE_CENTRE)
-        self.editsamples.AppendText(str(frame.p.samples[index1]))
-        dataSizer.Add(self.editsamples, pos=(1, 4))
-        self.sampleList = (
+        self.label_rate = wx.StaticText(self, label="Rate(ms)")
+        data_sizer.Add(self.label_rate, pos=(0, 3))
+        self.edit_rate = wx.TextCtrl(self, style=wx.TE_CENTRE)
+        self.edit_rate.AppendText(str(frame.p.rate[index_1]))
+        data_sizer.Add(self.edit_rate, pos=(0, 4))
+        self.enable_extern = wx.CheckBox(self, label="Enable extern")
+        self.Bind(wx.EVT_CHECKBOX, self.extern_mode_event, self.enable_extern)
+        self.enable_extern.SetValue(False)
+        data_sizer.Add(self.enable_extern, pos=(0, 5))
+        self.label_samples = wx.StaticText(self, label="Samples per point")
+        data_sizer.Add(self.label_samples, pos=(1, 3))
+        self.edit_samples = wx.TextCtrl(self, style=wx.TE_CENTRE)
+        self.edit_samples.AppendText(str(frame.p.samples[index_1]))
+        data_sizer.Add(self.edit_samples, pos=(1, 4))
+        self.sample_list = (
             "Continuous", "Single run: 20", "Single run:40", "Single run: 100")
-        self.lblmode = wx.StaticText(self, label="Mode")
-        dataSizer.Add(self.lblmode, pos=(2, 3))
-        self.editmode = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.editmode.SetSelection(frame.p.mode[index1])
-        dataSizer.Add(self.editmode, pos=(2, 4))
-        self.okButton = wx.Button(self, label="Confirm")
-        self.Bind(wx.EVT_BUTTON, self.confirmEvent, self.okButton)
-        dataSizer.Add(self.okButton, pos=(3, 5))
-        mainLayout.Add(dataSizer, 1, wx.EXPAND | wx.ALL, 20)
-        self.SetSizerAndFit(mainLayout)
-        self.editch1Change(0)
-        if frame.vHW == "s":
+        self.label_mode = wx.StaticText(self, label="Mode")
+        data_sizer.Add(self.label_mode, pos=(2, 3))
+        self.edit_mode = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_mode.SetSelection(frame.p.mode[index_1])
+        data_sizer.Add(self.edit_mode, pos=(2, 4))
+        self.ok_button = wx.Button(self, label="Confirm")
+        self.Bind(wx.EVT_BUTTON, self.confirm_event, self.ok_button)
+        data_sizer.Add(self.ok_button, pos=(3, 5))
+        main_layout.Add(data_sizer, 1, wx.EXPAND | wx.ALL, 20)
+        self.SetSizerAndFit(main_layout)
+        self.edit_ch_1_change(0)
+        if frame.hw_ver == "s":
             if selection != 0:
                 selection = 1
-            self.editch2.SetSelection(selection)
+            self.edit_ch_2.SetSelection(selection)
             if selection != 0:
-                self.editrange.SetSelection(frame.p.range[index1])
-                self.editrange.Enable(True)
-                self.lblrange.Enable(True)
+                self.edit_range.SetSelection(frame.p.range[index_1])
+                self.edit_range.Enable(True)
+                self.label_range.Enable(True)
 
-    def externModeEvent(self, event):
-        self.editrate.Enable(not self.enableExtern.GetValue())
+    def extern_mode_event(self, event):
+        self.edit_rate.Enable(not self.enable_extern.GetValue())
 
-    def confirmEvent(self, event):
-        if self.editrate.GetLineText(0).isdigit():
-            self.rate = int(self.editrate.GetLineText(0))
+    def confirm_event(self, event):
+        if self.edit_rate.GetLineText(0).isdigit():
+            self.rate = int(self.edit_rate.GetLineText(0))
             if self.rate < 1 or self.rate > 65535:
                 dlg = wx.MessageDialog(
                     self, "Time can not be neither greater than 65535 nor \
@@ -628,9 +627,9 @@ class ConfigDialog (wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
             return
-        string = self.editsamples.GetLineText(0)
+        string = self.edit_samples.GetLineText(0)
         if string.isdigit():
-            self.samples = int(self.editsamples.GetLineText(0))
+            self.samples = int(self.edit_samples.GetLineText(0))
             if self.samples < 1 or self.samples > 255:
                 dlg = wx.MessageDialog(
                     self, "Samples can not be neither greater than 255 nor \
@@ -646,32 +645,32 @@ class ConfigDialog (wx.Dialog):
             return 0
         self.EndModal(wx.ID_OK)
 
-    def editch2Change(self, event):
-        if frame.vHW == "m":
+    def edit_ch_2_change(self, event):
+        if frame.hw_ver == "m":
             return
-        value = self.editch2.GetValue()
+        value = self.edit_ch_2.GetValue()
         if value == "AGND":
-            self.editrange.SetValue("x1")
-            self.editrange.Enable(False)
-            self.lblrange.Enable(False)
+            self.edit_range.SetValue("x1")
+            self.edit_range.Enable(False)
+            self.label_range.Enable(False)
         else:
-            self.editrange.Enable(True)
-            self.lblrange.Enable(True)
+            self.edit_range.Enable(True)
+            self.label_range.Enable(True)
 
-    def editch1Change(self, event):
-        if frame.vHW == "m":
+    def edit_ch_1_change(self, event):
+        if frame.hw_ver == "m":
             return
-        value = self.editch1.GetValue()
-        self.editch2.Clear()
-        self.editch2.Append("AGND")
+        value = self.edit_ch_1.GetValue()
+        self.edit_ch_2.Clear()
+        self.edit_ch_2.Append("AGND")
         if (int(value[1]) % 2) == 0:
-            self.editch2.Append("A" + str(int(value[1])-1))
+            self.edit_ch_2.Append("A" + str(int(value[1])-1))
         else:
-            self.editch2.Append("A" + str(int(value[1])+1))
-        self.editch2.SetSelection(0)
-        self.editrange.SetSelection(0)
-        self.editrange.Enable(False)
-        self.lblrange.Enable(False)
+            self.edit_ch_2.Append("A" + str(int(value[1])+1))
+        self.edit_ch_2.SetSelection(0)
+        self.edit_range.SetSelection(0)
+        self.edit_range.Enable(False)
+        self.label_range.Enable(False)
 
 
 class MyCustomToolbar(NavigationToolbar2Wx):
@@ -691,45 +690,45 @@ class InterfazPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         self.frame = parent
-        self.enableCheck = []
+        self.enable_check = []
         # Configuration save
-        self.ch1 = [1, 1, 1, 1]
-        self.ch2 = [0, 0, 0, 0]
-        if self.frame.vHW == "m":
+        self.ch_1 = [1, 1, 1, 1]
+        self.ch_2 = [0, 0, 0, 0]
+        if self.frame.hw_ver == "m":
             self.range = [1, 1, 1, 1]
-        if self.frame.vHW == "s":
+        if self.frame.hw_ver == "s":
             self.range = [0, 0, 0, 0]
         self.rate = [100, 100, 100, 100]
         self.samples = [20, 20, 20, 20]
         self.mode = [0, 0, 0, 0]
-        self.npoint = [0, 0, 0, 0]
-        self.externFlag = [0, 0, 0, 0]
-        self.burstModeStreamOut = self.waveForm = 0
-        self.amplitudeStreamOut = self.offsetStreamOut = 1000
-        self.tOnStreamOut = self.tRiseStreamOut = 5
-        self.periodStreamOut = 15
+        self.num_point = [0, 0, 0, 0]
+        self.extern_flag = [0, 0, 0, 0]
+        self.burst_mode_stream_out = self.waveform = 0
+        self.amplitude_stream_out = self.offset_stream_out = 1000
+        self.time_on_stream_out = self.rise_time_stream_out = 5
+        self.period_stream_out = 15
         self.configure = []
         self.color = []
-        self.dataLbl = []
-        self.datagraphSizer = []
-        dataSizer = []
-        mainSizer = wx.BoxSizer(wx.HORIZONTAL)
-        datasSizer = wx.BoxSizer(wx.VERTICAL)
-        graphSizer = wx.BoxSizer(wx.VERTICAL)
-        plotSizer = wx.BoxSizer(wx.VERTICAL)
-        hSizer2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.data_label = []
+        self.data_grap_horizontal_sizer = []
+        data_sizer = []
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        datas_sizer = wx.BoxSizer(wx.VERTICAL)
+        grap_horizontal_sizer = wx.BoxSizer(wx.VERTICAL)
+        plot_sizer = wx.BoxSizer(wx.VERTICAL)
+        horizontal_sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
         for i in range(4):
             box = wx.StaticBox(self, -1, 'Experiment %d' % (i+1))
-            self.dataLbl.append(box)
-            self.datagraphSizer.append(
-                wx.StaticBoxSizer(self.dataLbl[i], wx.HORIZONTAL))
-            dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-            self.enableCheck.append(wx.CheckBox(self, label="Enable"))
-            self.enableCheck[i].SetValue(False)
-            dataSizer[i].Add(self.enableCheck[i], 0, wx.ALL, border=10)
+            self.data_label.append(box)
+            self.data_grap_horizontal_sizer.append(
+                wx.StaticBoxSizer(self.data_label[i], wx.HORIZONTAL))
+            data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+            self.enable_check.append(wx.CheckBox(self, label="Enable"))
+            self.enable_check[i].SetValue(False)
+            data_sizer[i].Add(self.enable_check[i], 0, wx.ALL, border=10)
             self.configure.append(wx.Button(self, id=i+100, label="Configure"))
-            self.Bind(wx.EVT_BUTTON, self.configureEvent, self.configure[i])
-            dataSizer[i].Add(self.configure[i], 0, wx.ALL, border=10)
+            self.Bind(wx.EVT_BUTTON, self.configure_event, self.configure[i])
+            data_sizer[i].Add(self.configure[i], 0, wx.ALL, border=10)
             self.color.append(wx.StaticText(self, label="..........."))
             if i < 3:
                 color = (255 * (i == 0), 255 * (i == 1), 255 * (i == 2))
@@ -737,46 +736,48 @@ class InterfazPanel(wx.Panel):
                 color = (0, 0, 0)
             self.color[i].SetForegroundColour(color)  # Set text color
             self.color[i].SetBackgroundColour(color)  # Set text back color
-            dataSizer[i].Add(self.color[i], 0, wx.ALL, border=10)
-            self.datagraphSizer[i].Add(dataSizer[i], 0, wx.ALL)
-            datasSizer.Add(self.datagraphSizer[i], 0, wx.ALL, border=10)
+            data_sizer[i].Add(self.color[i], 0, wx.ALL, border=10)
+            self.data_grap_horizontal_sizer[i].Add(data_sizer[i], 0, wx.ALL)
+            datas_sizer.Add(
+                self.data_grap_horizontal_sizer[i], 0, wx.ALL, border=10)
         # Stream out panel
         box = wx.StaticBox(self, -1, 'Waveform generator')
-        self.dataLbl.append(box)
-        self.datagraphSizer.append(
-            wx.StaticBoxSizer(self.dataLbl[4], wx.HORIZONTAL))
-        dataSizer.append(wx.BoxSizer(wx.HORIZONTAL))
-        self.enableCheck.append(wx.CheckBox(self, label="Enable"))
-        self.Bind(wx.EVT_CHECKBOX, self.streamEnable, self.enableCheck[4])
-        self.enableCheck[4].SetValue(False)
-        dataSizer[4].Add(self.enableCheck[4], 0, wx.ALL, border=10)
+        self.data_label.append(box)
+        self.data_grap_horizontal_sizer.append(
+            wx.StaticBoxSizer(self.data_label[4], wx.HORIZONTAL))
+        data_sizer.append(wx.BoxSizer(wx.HORIZONTAL))
+        self.enable_check.append(wx.CheckBox(self, label="Enable"))
+        self.Bind(wx.EVT_CHECKBOX, self.stream_enable, self.enable_check[4])
+        self.enable_check[4].SetValue(False)
+        data_sizer[4].Add(self.enable_check[4], 0, wx.ALL, border=10)
         self.configure.append(wx.Button(self, id=400, label="Configure"))
-        self.Bind(wx.EVT_BUTTON, self.configureStream, self.configure[4])
-        dataSizer[4].Add(self.configure[4], 0, wx.ALL, border=10)
-        self.datagraphSizer[4].Add(dataSizer[4], 0, wx.ALL)
-        datasSizer.Add(self.datagraphSizer[4], 0, wx.ALL, border=10)
+        self.Bind(wx.EVT_BUTTON, self.configure_stream, self.configure[4])
+        data_sizer[4].Add(self.configure[4], 0, wx.ALL, border=10)
+        self.data_grap_horizontal_sizer[4].Add(data_sizer[4], 0, wx.ALL)
+        datas_sizer.Add(
+            self.data_grap_horizontal_sizer[4], 0, wx.ALL, border=10)
         # Export
         box = wx.StaticBox(self, -1, 'Export graphics')
-        self.exportLbl = box
-        self.exportSizer = wx.StaticBoxSizer(self.exportLbl, wx.HORIZONTAL)
+        self.export_label = box
+        self.export_sizer = wx.StaticBoxSizer(self.export_label, wx.HORIZONTAL)
         self.png = wx.Button(self, label="As PNG file...")
-        self.Bind(wx.EVT_BUTTON, self.saveAsPNGEvent, self.png)
+        self.Bind(wx.EVT_BUTTON, self.save_as_png_event, self.png)
         self.csv = wx.Button(self, label="As CSV file...")
-        self.Bind(wx.EVT_BUTTON, self.saveAsCSVEvent, self.csv)
-        hSizer2.Add(self.png, 0, wx.ALL)
-        hSizer2.Add(self.csv, 0, wx.ALL)
-        self.exportSizer.Add(hSizer2, 0, wx.ALL)
-        self.buttonPlay = wx.Button(self, label="Play")
-        self.Bind(wx.EVT_BUTTON, self.PlayEvent, self.buttonPlay)
-        self.buttonStop = wx.Button(self, label="Stop")
-        self.Bind(wx.EVT_BUTTON, self.StopEvent, self.buttonStop)
-        self.buttonStop.Enable(False)
-        self.stoppingLabel = wx.StaticText(self, label="")
-        datasSizer.Add(self.exportSizer, 0, wx.ALL, border=10)
-        graphSizer.Add(datasSizer, 0, wx.ALL)
-        graphSizer.Add(self.buttonPlay, 0, wx.CENTRE, border=5)
-        graphSizer.Add(self.buttonStop, 0, wx.CENTRE, border=5)
-        graphSizer.Add(self.stoppingLabel, 0, wx.CENTRE, border=5)
+        self.Bind(wx.EVT_BUTTON, self.save_as_csv_event, self.csv)
+        horizontal_sizer_2.Add(self.png, 0, wx.ALL)
+        horizontal_sizer_2.Add(self.csv, 0, wx.ALL)
+        self.export_sizer.Add(horizontal_sizer_2, 0, wx.ALL)
+        self.button_play = wx.Button(self, label="Play")
+        self.Bind(wx.EVT_BUTTON, self.play_event, self.button_play)
+        self.button_stop = wx.Button(self, label="Stop")
+        self.Bind(wx.EVT_BUTTON, self.stop_event, self.button_stop)
+        self.button_stop.Enable(False)
+        self.stopping_label = wx.StaticText(self, label="")
+        datas_sizer.Add(self.export_sizer, 0, wx.ALL, border=10)
+        grap_horizontal_sizer.Add(datas_sizer, 0, wx.ALL)
+        grap_horizontal_sizer.Add(self.button_play, 0, wx.CENTRE, border=5)
+        grap_horizontal_sizer.Add(self.button_stop, 0, wx.CENTRE, border=5)
+        grap_horizontal_sizer.Add(self.stopping_label, 0, wx.CENTRE, border=5)
         self.figure = Figure(facecolor='#ece9d8')
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self, -1, self.figure)
@@ -785,18 +786,18 @@ class InterfazPanel(wx.Panel):
         self.axes.autoscale(False)
         self.canvas.SetInitialSize(size=(600, 600))
         self.add_toolbar()
-        self.cidUpdate = self.canvas.mpl_connect(
-            'motion_notify_event', self.UpdateStatusBar)
-        plotSizer.Add(self.toolbar, 0, wx.CENTER)
-        plotSizer.Add(self.canvas, 0, wx.ALL)
-        mainSizer.Add(graphSizer, 0, wx.ALL)
-        mainSizer.Add(plotSizer, 0, wx.ALL)
-        self.SetSizerAndFit(mainSizer)
+        self.cid_update = self.canvas.mpl_connect(
+            'motion_notify_event', self.update_status_bar)
+        plot_sizer.Add(self.toolbar, 0, wx.CENTER)
+        plot_sizer.Add(self.canvas, 0, wx.ALL)
+        main_sizer.Add(grap_horizontal_sizer, 0, wx.ALL)
+        main_sizer.Add(plot_sizer, 0, wx.ALL)
+        self.SetSizerAndFit(main_sizer)
 
-    def UpdateStatusBar(self, event):
+    def update_status_bar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            frame.statusBar.SetStatusText(
+            frame.status_bar.SetStatusText(
                 ("x= " + "%.4g" % x + "  y=" + "%.4g" % y), 1)
 
     def add_toolbar(self):
@@ -810,128 +811,128 @@ class InterfazPanel(wx.Panel):
         # of the frame - so appearance is closer to GTK version.
         # As noted above, doesn't work for Mac.
         self.toolbar.SetSize(wx.Size(fw, th))
-        # self.mainSizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
+        # self.main_sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
         # update the axes menu on the toolbar
         self.toolbar.update()
 
-    def saveAsPNGEvent(self, event):
-        self.dirname = ''
+    def save_as_png_event(self, event):
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.png", wx.OPEN)
+            self, "Choose a file", self.directory_name, "", "*.png", wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
-            self.figure.savefig(self.dirname+"\\"+self.filename)
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
+            self.figure.savefig(self.directory_name+"\\"+self.file_name)
         dlg.Destroy()
 
-    def saveAsCSVEvent(self, event):
-        self.dirname = ''
+    def save_as_csv_event(self, event):
+        self.directory_name = ''
         dlg = wx.FileDialog(
-            self, "Choose a file", self.dirname, "", "*.odq", wx.OPEN)
+            self, "Choose a file", self.directory_name, "", "*.odq", wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetFilename()
-            self.dirname = dlg.GetDirectory()
+            self.file_name = dlg.GetFilename()
+            self.directory_name = dlg.GetDirectory()
             for j in range(4):
-                if self.enableCheck[j].IsChecked():
+                if self.enable_check[j].IsChecked():
                     with open(
-                        self.dirname + "\\" + str(j) + self.filename,
-                            'wb') as csvfile:
+                        self.directory_name + "\\" + str(j) + self.file_name,
+                            'wb') as file:
                                 spamwriter = csv.writer(
-                                    csvfile, quoting=csv.QUOTE_MINIMAL)
-                                for i in range(len(comunicationThread.x[j])):
+                                    file, quoting=csv.QUOTE_MINIMAL)
+                                for i in range(len(comunication_thread.x[j])):
                                     spamwriter.writerow(
-                                        [comunicationThread.x[j][i],
-                                            comunicationThread.y[j][i]])
+                                        [comunication_thread.x[j][i],
+                                            comunication_thread.y[j][i]])
         dlg.Destroy()
 
-    def configureStream(self, event):
+    def configure_stream(self, event):
         dlg = StreamDialog(self)
         if dlg.ShowModal() == wx.ID_OK:
-            self.burstModeStreamOut = dlg.burstModeFlag
-            if dlg.csvFlag:
-                self.buffer = dlg.csvBuffer[:140]
+            self.burst_mode_stream_out = dlg.burst_mode_flag
+            if dlg.csv_flag:
+                self.buffer = dlg.csv_buffer[:140]
                 self.interval = int(dlg.period/(len(self.buffer)))
             else:
-                self.periodStreamOut = dlg.period
-                self.amplitudeStreamOut = dlg.amplitude
-                self.offsetStreamOut = dlg.offset
-                self.signalStreamOut = dlg.signal
-                self.tRiseStreamOut = dlg.tRise
-                self.tOnStreamOut = dlg.ton
-                self.signalCreate()
+                self.period_stream_out = dlg.period
+                self.amplitude_stream_out = dlg.amplitude
+                self.offset_stream_out = dlg.offset
+                self.signal_stream_out = dlg.signal
+                self.rise_time_stream_out = dlg.time_rise
+                self.time_on_stream_out = dlg.ton
+                self.signal_create()
         dlg.Destroy()
-        self.streamEnable(0)
+        self.stream_enable(0)
 
-    def streamEnable(self, event):
-        if self.enableCheck[4].IsChecked():
-            if self.burstModeStreamOut:
+    def stream_enable(self, event):
+        if self.enable_check[4].IsChecked():
+            if self.burst_mode_stream_out:
                 for i in range(3):
-                    self.enableCheck[i].SetValue(0)
-                    self.enableCheck[i].Enable(False)
-            self.enableCheck[3].SetValue(0)
-            self.enableCheck[3].Enable(False)
+                    self.enable_check[i].SetValue(0)
+                    self.enable_check[i].Enable(False)
+            self.enable_check[3].SetValue(0)
+            self.enable_check[3].Enable(False)
         else:
             for i in range(4):
-                    self.enableCheck[i].SetValue(0)
-                    self.enableCheck[i].Enable(True)
+                    self.enable_check[i].SetValue(0)
+                    self.enable_check[i].Enable(True)
 
-    def configureEvent(self, event):
+    def configure_event(self, event):
         wx.SetCursor(wx.StockCursor(wx.CURSOR_HAND))
-        index1 = event.GetEventObject().GetId()-100
-        dlg = ConfigDialog(self, index1)
+        index_1 = event.GetEventObject().GetId()-100
+        dlg = ConfigDialog(self, index_1)
         if dlg.ShowModal() == wx.ID_OK:
-            self.ch1[index1] = dlg.editch1.GetCurrentSelection()
-            self.ch2[index1] = dlg.editch2.GetCurrentSelection()
-            self.range[index1] = dlg.editrange.GetCurrentSelection()
-            self.ch1[index1] += 1
-            if frame.vHW == "m":
-                if self.ch2[index1] == 1:
-                    self.ch2[index1] = 25
-                elif self.ch2[index1] > 1:
-                    self.ch2[index1] += 3
-            if frame.vHW == "s":
-                if self.ch2[index1] > 0:
-                    value = self.ch1[index1]
+            self.ch_1[index_1] = dlg.edit_ch_1.GetCurrentSelection()
+            self.ch_2[index_1] = dlg.edit_ch_2.GetCurrentSelection()
+            self.range[index_1] = dlg.edit_range.GetCurrentSelection()
+            self.ch_1[index_1] += 1
+            if frame.hw_ver == "m":
+                if self.ch_2[index_1] == 1:
+                    self.ch_2[index_1] = 25
+                elif self.ch_2[index_1] > 1:
+                    self.ch_2[index_1] += 3
+            if frame.hw_ver == "s":
+                if self.ch_2[index_1] > 0:
+                    value = self.ch_1[index_1]
                     if value % 2:
-                        self.ch2[index1] = value + 1
+                        self.ch_2[index_1] = value + 1
                     else:
-                        self.ch2[index1] = value - 1
-            if dlg.enableExtern.GetValue() is True:
-                self.rate[index1] = int(dlg.editrate.GetLineText(0))
-                self.externFlag[index1] = 1
+                        self.ch_2[index_1] = value - 1
+            if dlg.enable_extern.GetValue() is True:
+                self.rate[index_1] = int(dlg.edit_rate.GetLineText(0))
+                self.extern_flag[index_1] = 1
             else:
-                self.rate[index1] = int(dlg.editrate.GetLineText(0))
-                self.externFlag[index1] = 0
-            self.samples[index1] = int(dlg.editsamples.GetLineText(0))
-            self.mode[index1] = dlg.editmode.GetCurrentSelection()
-            if self.mode[index1] == 0:
-                self.npoint[index1] = self.mode[index1] = 0
+                self.rate[index_1] = int(dlg.edit_rate.GetLineText(0))
+                self.extern_flag[index_1] = 0
+            self.samples[index_1] = int(dlg.edit_samples.GetLineText(0))
+            self.mode[index_1] = dlg.edit_mode.GetCurrentSelection()
+            if self.mode[index_1] == 0:
+                self.num_point[index_1] = self.mode[index_1] = 0
             else:
-                self.npoint[index1] = 20 * self.mode[index1]
-                self.mode[index1] = 1
+                self.num_point[index_1] = 20 * self.mode[index_1]
+                self.mode[index_1] = 1
             dlg.Destroy()
 
-    def PlayEvent(self, event):
+    def play_event(self, event):
         self.channel = []
         for i in range(4):
-            if self.enableCheck[i].GetValue():
-                frame.channelState[i] = 1
+            if self.enable_check[i].GetValue():
+                frame.channel_state[i] = 1
                 self.channel.append(
-                    [self.ch1[i], self.ch2[i], self.rate[i], self.range[i]])
+                    [self.ch_1[i], self.ch_2[i], self.rate[i], self.range[i]])
                 if self.rate[i] < 10:
-                    self.npoint[i] = 30000
+                    self.num_point[i] = 30000
                     self.mode[i] = 1
-                if self.externFlag[i] == 1:
+                if self.extern_flag[i] == 1:
                     frame.daq.create_external(i+1, 0)
                 else:
                     frame.daq.create_stream(i+1, self.rate[i])
                 frame.daq.setup_channel(
-                    i+1, self.npoint[i], self.mode[i])  # Mode continuous
+                    i+1, self.num_point[i], self.mode[i])  # Mode continuous
                 frame.daq.conf_channel(
-                    i+1, 0, self.ch1[i], self.ch2[i], self.range[i],
+                    i+1, 0, self.ch_1[i], self.ch_2[i], self.range[i],
                     self.samples[i])  # Analog input
-        if self.enableCheck[4].GetValue():
-            if self.burstModeStreamOut:
+        if self.enable_check[4].GetValue():
+            if self.burst_mode_stream_out:
                 frame.daq.create_burst(self.interval * 100)
                 frame.daq.setup_channel(
                     1, len(self.buffer), 0)  # Mode continuous
@@ -942,145 +943,149 @@ class InterfazPanel(wx.Panel):
                     4, len(self.buffer), 0)  # Mode continuous
                 frame.daq.conf_channel(4, 1, 0, 0, 0, 0)  # Analog output
             # Cut signal buffer into x length buffers
-            xLength = 20
-            nBuffers = len(self.buffer) / xLength
-            for i in range(nBuffers):
-                self.init = i * xLength
-                self.end = self.init+xLength
-                self.interBuffer = self.buffer[self.init:self.end]
-                frame.daq.load_signal(self.interBuffer, self.init)
-            self.init = nBuffers * xLength
-            self.interBuffer = self.buffer[self.init:]
-            if len(self.interBuffer) > 0:
-                frame.daq.load_signal(self.interBuffer, self.init)
-        self.buttonPlay.Enable(False)
-        self.buttonStop.Enable(True)
-        timerThread.startDrawing()
-        comunicationThread.restart()
+            x_length = 20
+            num_buffers = len(self.buffer) / x_length
+            for i in range(num_buffers):
+                self.init = i * x_length
+                self.end = self.init + x_length
+                self.inter_buffer = self.buffer[self.init:self.end]
+                frame.daq.load_signal(self.inter_buffer, self.init)
+            self.init = num_buffers * x_length
+            self.inter_buffer = self.buffer[self.init:]
+            if len(self.inter_buffer) > 0:
+                frame.daq.load_signal(self.inter_buffer, self.init)
+        self.button_play.Enable(False)
+        self.button_stop.Enable(True)
+        timer_thread.start_drawing()
+        comunication_thread.restart()
 
-    def StopEvent(self, event):
-        self.buttonStop.Enable(False)
-        comunicationThread.stop()
-        timerThread.stop()
+    def stop_event(self, event):
+        self.button_stop.Enable(False)
+        comunication_thread.stop()
+        timer_thread.stop()
 
-    def signalCreate(self):
-        if self.signalStreamOut == 0:
+    def signal_create(self):
+        if self.signal_stream_out == 0:
             # Sine
-            if self.periodStreamOut < 140:
+            if self.period_stream_out < 140:
                 self.interval = 1
             else:
-                self.interval = int(self.periodStreamOut/140)
+                self.interval = int(self.period_stream_out/140)
                 self.interval += 1
-            self.t = np.arange(0, self.periodStreamOut, self.interval)
-            self.buffer = np.sin(2 * np.pi / self.periodStreamOut * self.t) * (
-                self.amplitudeStreamOut)
+            self.t = np.arange(0, self.period_stream_out, self.interval)
+            self.buffer = np.sin(
+                2 * np.pi / self.period_stream_out * self.t) * (
+                self.amplitude_stream_out)
             for i in range(len(self.buffer)):
-                self.buffer[i] = self.buffer[i]+self.offsetStreamOut
-        if self.signalStreamOut == 1:
+                self.buffer[i] = self.buffer[i]+self.offset_stream_out
+        if self.signal_stream_out == 1:
             # Square
             self.buffer = []
             self.interval = fractions.gcd(
-                self.periodStreamOut, self.tOnStreamOut)
-            self.pointsOn = int(self.tOnStreamOut / self.interval)
-            self.points = int(self.periodStreamOut / self.interval)
-            for i in range(self.pointsOn):
+                self.period_stream_out, self.time_on_stream_out)
+            self.points_on = int(self.time_on_stream_out / self.interval)
+            self.points = int(self.period_stream_out / self.interval)
+            for i in range(self.points_on):
                 self.buffer.append(
-                    self.amplitudeStreamOut+self.offsetStreamOut)
-            for i in range(self.points-self.pointsOn):
-                self.buffer.append(self.offsetStreamOut)
-        if self.signalStreamOut == 2:
+                    self.amplitude_stream_out+self.offset_stream_out)
+            for i in range(self.points-self.points_on):
+                self.buffer.append(self.offset_stream_out)
+        if self.signal_stream_out == 2:
             # Sawtooth
-            if self.periodStreamOut < 140:
+            if self.period_stream_out < 140:
                 self.interval = 1
-                self.points = int(self.periodStreamOut)
+                self.points = int(self.period_stream_out)
                 self.increment = int(
-                    self.amplitudeStreamOut/self.periodStreamOut)
+                    self.amplitude_stream_out/self.period_stream_out)
             else:
-                self.interval = int(self.periodStreamOut/140)
+                self.interval = int(self.period_stream_out/140)
                 self.interval += 1
-                self.points = int(self.periodStreamOut/self.interval)
-                self.increment = int(self.amplitudeStreamOut/self.points)
-            self.init = int(self.offsetStreamOut)
+                self.points = int(self.period_stream_out/self.interval)
+                self.increment = int(self.amplitude_stream_out/self.points)
+            self.init = int(self.offset_stream_out)
             self.buffer = []
             for i in range(self.points):
                 self.value = self.init
                 self.value += (self.increment * i)
                 self.buffer.append(self.value)
-        if self.signalStreamOut == 3:
+        if self.signal_stream_out == 3:
             # Triangle
-            if self.periodStreamOut < 140:
+            if self.period_stream_out < 140:
                 self.interval = 1
-                self.points = int(self.tRiseStreamOut)
+                self.points = int(self.rise_time_stream_out)
                 self.increment = int(
-                    self.amplitudeStreamOut/self.tRiseStreamOut)
+                    self.amplitude_stream_out/self.rise_time_stream_out)
             else:
-                self.relation = int(self.periodStreamOut/self.tRiseStreamOut)
+                self.relation = int(
+                    self.period_stream_out/self.rise_time_stream_out)
                 self.points = int(140/self.relation)  # Ideal n points
-                self.interval = int(self.tRiseStreamOut/self.points)
+                self.interval = int(self.rise_time_stream_out/self.points)
                 self.interval += 1
-                self.points = int(self.tRiseStreamOut/self.interval)
-                self.increment = int(self.amplitudeStreamOut/self.points)
-            self.init = int(self.offsetStreamOut)
+                self.points = int(self.rise_time_stream_out/self.interval)
+                self.increment = int(self.amplitude_stream_out/self.points)
+            self.init = int(self.offset_stream_out)
             self.buffer = []
             for i in range(self.points):
                 self.value = self.init
                 self.value += (self.increment * i)
                 self.buffer.append(self.value)
-            if self.periodStreamOut < 140:
-                self.points = int(self.periodStreamOut-self.tRiseStreamOut)
+            if self.period_stream_out < 140:
+                self.points = int(
+                    self.period_stream_out-self.rise_time_stream_out)
                 self.increment = int(
-                    self.amplitudeStreamOut /
-                    (self.periodStreamOut-self.tRiseStreamOut))
+                    self.amplitude_stream_out /
+                    (self.period_stream_out-self.rise_time_stream_out))
             else:
-                self.time = int(self.periodStreamOut-self.tRiseStreamOut)
+                self.time = int(
+                    self.period_stream_out-self.rise_time_stream_out)
                 self.points = 140-self.points  # Ideal n points
                 self.interval = int(self.time / self.points)
                 self.interval += 1
                 self.points = int(self.time / self.interval)
-                self.increment = int(self.amplitudeStreamOut / self.points)
-            self.init = int(self.offsetStreamOut + self.amplitudeStreamOut)
+                self.increment = int(self.amplitude_stream_out / self.points)
+            self.init = int(self.offset_stream_out + self.amplitude_stream_out)
             for i in range(self.points):
                 self.value = self.init - (self.increment * i)
                 self.buffer.append(self.value)
-        if self.signalStreamOut == 4:
+        if self.signal_stream_out == 4:
             # Continuous
             self.buffer = []
-            self.interval = self.periodStreamOut
-            self.buffer.append(self.offsetStreamOut)
+            self.interval = self.period_stream_out
+            self.buffer.append(self.offset_stream_out)
         # Calibration
         for i in range(len(self.buffer)):
-            dacValue = self.buffer[i]
+            dac_value = self.buffer[i]
             info = self.frame.daq.get_info()
             if info[1] < 110:
-                self.buffer[i] = dacValue
+                self.buffer[i] = dac_value
             else:
-                self.buffer[i] = calibration(int(round(dacValue)))
+                self.buffer[i] = calibration(int(round(dac_value)))
         if len(self.buffer) >= 140:
             self.buffer = self.buffer[:140]
 
 
 class MainFrame(wx.Frame):
-    def __init__(self, commPort):
+    def __init__(self, com_port):
         wx.Frame.__init__(
             self, None, title="EasyDAQ", style=wx.DEFAULT_FRAME_STYLE &
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.colors = 'r', 'g', 'b', 'k'
-        self.daq = DAQ(commPort)
-        self.vHW = self.daq.hw_ver
+        self.daq = DAQ(com_port)
+        self.hw_ver = self.daq.hw_ver
         icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
-        self.statusBar = self.CreateStatusBar()
-        self.statusBar.SetFieldsCount(2)
+        self.status_bar = self.CreateStatusBar()
+        self.status_bar.SetFieldsCount(2)
         info = self.daq.get_info()
-        vHW = "[M]" if info[0] == 1 else "[S]"
-        vFW = (
+        hw_ver = "[M]" if info[0] == 1 else "[S]"
+        fw_ver = (
             str(info[1] / 100) + "." + str((info[1] / 10) % 10) + "." +
             str(info[1] % 10))
-        self.statusBar.SetStatusText("H:%s V:%s" % (vHW, vFW), 0)
-        self.channelState = [0, 0, 0, 0]
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-        self.errorDic = {'size': 0}
-        self.errorInfo = {'Failure data size': 0}
+        self.status_bar.SetStatusText("H:%s V:%s" % (hw_ver, fw_ver), 0)
+        self.channel_state = [0, 0, 0, 0]
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.error_dic = {'size': 0}
+        self.error_info = {'Failure data size': 0}
         # Here we create a panel
         self.p = InterfazPanel(self)
         sz = self.p.GetSize()
@@ -1092,76 +1097,77 @@ class MainFrame(wx.Frame):
         self.offset = []
         self.gains, self.offset = self.daq.get_cal()
 
-    def setVoltage(self, voltage):
+    def set_voltage(self, voltage):
         self.daq.set_analog(voltage)
 
-    def OnClose(self, event):
+    def on_close(self, event):
         dlg = wx.MessageDialog(
             self, "Do you really want to close this application?",
             "Confirm Exit", wx.OK | wx.CANCEL | wx.ICON_QUESTION)
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
-            comunicationThread.stopThread()
-            timerThread.stopThread()
+            comunication_thread.stop_thread()
+            timer_thread.stop_thread()
             self.daq.close()
             self.Destroy()
 
-    def ShowErrorParameters(self):
+    def show_error_parameters(self):
         dlg = wx.MessageDialog(
             self, "Verify parameters", "Error!", wx.OK | wx.ICON_WARNING)
         dlg.ShowModal()
         dlg.Destroy()
 
-    def stopChannel(self, number):
-        self.channelState[number] = suma = 0
+    def stop_channel(self, number):
+        self.channel_state[number] = suma = 0
         for i in range(3):
-            suma += self.channelState[i]
+            suma += self.channel_state[i]
         if suma == 0:
-            self.p.buttonPlay.Enable(True)
-            self.p.buttonStop.Enable(False)
-            comunicationThread.stop()
-            timerThread.stop()
+            self.p.button_play.Enable(True)
+            self.p.button_stop.Enable(False)
+            comunication_thread.stop()
+            timer_thread.stop()
 
 
 class InitDlg(wx.Dialog):
     def __init__(self):
         wx.Dialog.__init__(
             self, None, title="EasyDAQ", style=(wx.STAY_ON_TOP | wx.CAPTION))
-        self.hsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.vsizer = wx.BoxSizer(wx.VERTICAL)
+        self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
-        self.hsizer.Add(self.gauge, wx.EXPAND)
+        self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
         avaiable_ports = scan(num_ports=255, verbose=False)
-        self.sampleList = []
+        self.sample_list = []
         if len(avaiable_ports) != 0:
             for n, nombre in avaiable_ports:
-                self.sampleList.append(nombre)
-        self.lblhear = wx.StaticText(self, label="Select Serial Port")
-        self.edithear = wx.ComboBox(
-            self, size=(95, -1), choices=self.sampleList, style=wx.CB_READONLY)
-        self.edithear.SetSelection(0)
-        self.hsizer.Add(self.lblhear, wx.EXPAND)
-        self.hsizer.Add(self.edithear, wx.EXPAND)
-        self.buttonOk = wx.Button(self, label="OK")
-        self.Bind(wx.EVT_BUTTON, self.okEvent, self.buttonOk)
-        self.buttonCancel = wx.Button(self, label="Cancel", pos=(115, 22))
-        self.Bind(wx.EVT_BUTTON, self.cancelEvent, self.buttonCancel)
-        self.vsizer.Add(self.hsizer, wx.EXPAND)
-        self.vsizer.Add(self.buttonOk, wx.EXPAND)
+                self.sample_list.append(nombre)
+        self.label_hear = wx.StaticText(self, label="Select Serial Port")
+        self.edit_hear = wx.ComboBox(
+            self, size=(95, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
+        self.edit_hear.SetSelection(0)
+        self.horizontal_sizer.Add(self.label_hear, wx.EXPAND)
+        self.horizontal_sizer.Add(self.edit_hear, wx.EXPAND)
+        self.button_ok = wx.Button(self, label="OK")
+        self.Bind(wx.EVT_BUTTON, self.ok_event, self.button_ok)
+        self.button_cancel = wx.Button(self, label="Cancel", pos=(115, 22))
+        self.Bind(wx.EVT_BUTTON, self.cancel_event, self.button_cancel)
+        self.vertical_sizer.Add(self.horizontal_sizer, wx.EXPAND)
+        self.vertical_sizer.Add(self.button_ok, wx.EXPAND)
         self.gauge.Show(False)
-        self.SetSizer(self.vsizer)
+        self.SetSizer(self.vertical_sizer)
         self.SetAutoLayout(1)
-        self.vsizer.Fit(self)
+        self.vertical_sizer.Fit(self)
 
-    def okEvent(self, event):
-        portN = self.edithear.GetCurrentSelection()
-        if portN >= 0:
-            self.buttonOk.Show(False)
-            self.edithear.Show(False)
-            self.buttonCancel.Show(False)
+    def ok_event(self, event):
+        port_number = self.edit_hear.GetCurrentSelection()
+        if port_number >= 0:
+            self.button_ok.Show(False)
+            self.edit_hear.Show(False)
+            self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sampleList[portN])
+            daq = DAQ(self.sample_list[port_number])
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(
@@ -1169,7 +1175,7 @@ class InitDlg(wx.Dialog):
                     wx.OK | wx.ICON_QUESTION)
                 dlg.ShowModal()
                 dlg.Destroy()
-                self.port = self.sampleList[portN]
+                self.port = self.sample_list[port_number]
                 self.EndModal(1)
             except:
                 dlg = wx.MessageDialog(
@@ -1185,7 +1191,7 @@ class InitDlg(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
 
-    def cancelEvent(self, event):
+    def cancel_event(self, event):
         self.port = 0
         self.EndModal(0)
 
@@ -1194,10 +1200,10 @@ def calibration(value):
     if not -4096 <= value < 4096:
         raise ValueError('DAQ voltage out of range')
     value *= frame.daq.dac_gain
-    if frame.vHW == "s":
+    if frame.hw_ver == "s":
         value *= 2
     data = (value / 1000.0 + frame.daq.dac_offset + 4096) * 2
-    if frame.vHW == "s" and data < 0:
+    if frame.hw_ver == "s" and data < 0:
         data = 0
     return data
 
@@ -1207,21 +1213,21 @@ class MyApp(wx.App):
         dial = InitDlg()
         ret = dial.ShowModal()
         dial.Destroy()
-        self.commPort = dial.port
+        self.com_port = dial.port
         self.connected = ret
         return True
 
 if __name__ == "__main__":
-    comunicationThread = ComThread()
-    comunicationThread.start()
-    timerThread = TimerThread()
-    timerThread.start()
+    comunication_thread = ComThread()
+    comunication_thread.start()
+    timer_thread = TimerThread()
+    timer_thread.start()
     app = MyApp(False)
     if app.connected:
-        frame = MainFrame(app.commPort)
+        frame = MainFrame(app.com_port)
         frame.Centre()
         frame.Show()
         app.MainLoop()
     else:
-        comunicationThread.stopThread()
-        timerThread.stopThread()
+        comunication_thread.stop_thread()
+        timer_thread.stop_thread()
