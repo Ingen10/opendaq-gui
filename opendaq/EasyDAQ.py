@@ -24,6 +24,7 @@ import threading
 import fractions
 import time
 from wx.lib.agw.floatspin import FloatSpin
+from wx.lib.pubsub import Publisher
 import csv
 import serial
 
@@ -102,29 +103,7 @@ class TimerThread (threading.Thread):
         while self.running:
             time.sleep(self.delay)
             if self.drawing:
-                if(frame.p.toolbar.mode == "pan/zoom"):
-                    continue
-                if(frame.p.toolbar.mode == "zoom rect"):
-                    continue
-                frame.p.canvas.mpl_disconnect(frame.p.cid_update)
-                try:
-                    frame.p.axes.clear()
-                    frame.p.axes.autoscale(False)
-                    frame.p.axes.grid(color='gray', linestyle='dashed')
-                    for i in range(4):
-                        if(len(
-                            comunication_thread.y[i]) ==
-                                len(comunication_thread.x[i])):
-                                    frame.p.axes.plot(
-                                        comunication_thread.y[i],
-                                        comunication_thread.x[i],
-                                        color=frame.colors[i])
-                    frame.p.canvas.draw()
-                    frame.p.axes.autoscale(True)
-                except:
-                    print "Error trying to paint"
-                frame.p.cid_update = frame.p.canvas.mpl_connect(
-                    'motion_notify_event', frame.p.update_status_bar)
+                wx.CallAfter(Publisher().sendMessage, "refresh")
                 self.end_time = time.time()
 
 
@@ -263,26 +242,8 @@ class ComThread (threading.Thread):
                     self.time = self.delay * len(self.x[self.ch[i]])
                     self.x[self.ch[i]].append(float(data_int))
                     self.y[self.ch[i]].append(self.time)
-                frame.p.axes.cla()
-                frame.p.axes.grid(color='gray', linestyle='dashed')
-                for i in range(4):
-                    frame.p.axes.plot(
-                        comunication_thread.y[i],
-                        comunication_thread.x[i], color=frame.colors[i])
-                frame.p.canvas.draw()
-                frame.daq.flush()
-                for i in range(4):
-                    if frame.p.enable_check[i].GetValue():
-                        try:
-                            frame.daq.destroy_channel(i+1)
-                        except:
-                            frame.daq.flush()
-                            print "Error trying to destroy channel"
-                            frame.daq.close()
-                            frame.daq.open()
-                frame.p.stopping_label.SetLabel("")
+                wx.CallAfter(Publisher().sendMessage, "stop")
                 self.stopping = 0
-                frame.p.button_play.Enable(True)
 
     def transform_data(self, data):
         if frame.hw_ver == "m":
@@ -793,6 +754,58 @@ class InterfazPanel(wx.Panel):
         main_sizer.Add(grap_horizontal_sizer, 0, wx.ALL)
         main_sizer.Add(plot_sizer, 0, wx.ALL)
         self.SetSizerAndFit(main_sizer)
+
+        #Create publisher receiver
+        Publisher().subscribe(self.refresh, "refresh") 
+        Publisher().subscribe(self.stop, "stop") 
+
+    def refresh(self, msg):
+        if(self.toolbar.mode == "pan/zoom"):
+            return
+        if(self.toolbar.mode == "zoom rect"):
+            return
+        self.canvas.mpl_disconnect(frame.p.cid_update)
+        try:
+            self.axes.clear()
+            self.axes.autoscale(False)
+            self.axes.grid(color='gray', linestyle='dashed')
+            for i in range(4):
+                if(len(
+                    comunication_thread.y[i]) ==
+                        len(comunication_thread.x[i])):
+                            self.axes.plot(
+                                comunication_thread.y[i],
+                                comunication_thread.x[i],
+                                color=frame.colors[i])
+            self.canvas.draw()
+            self.axes.autoscale(True)
+        except:
+            print "Error trying to paint"
+        self.cid_update = self.canvas.mpl_connect(
+            'motion_notify_event', self.update_status_bar)
+
+
+    def stop(self, event):
+        frame.p.axes.cla()
+        frame.p.axes.grid(color='gray', linestyle='dashed')
+        for i in range(4):
+            frame.p.axes.plot(
+                comunication_thread.y[i],
+                comunication_thread.x[i], color=frame.colors[i])
+        frame.p.canvas.draw()
+        frame.daq.flush()
+        for i in range(4):
+            if frame.p.enable_check[i].GetValue():
+                try:
+                    frame.daq.destroy_channel(i+1)
+                except:
+                    frame.daq.flush()
+                    print "Error trying to destroy channel"
+                    frame.daq.close()
+                    frame.daq.open()
+        frame.p.stopping_label.SetLabel("")
+        frame.p.button_play.Enable(True)
+
 
     def update_status_bar(self, event):
         if event.inaxes:

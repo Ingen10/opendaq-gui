@@ -506,7 +506,7 @@ class PageThree(wx.Panel):
             else:
                 self.output[i] = False
         frame.daq.set_port_dir(self.status)
-        frame.daq.set_port(self.values)
+        value_input = frame.daq.set_port(self.values)
         for i in range(6):
             if value_input & (1 << i):
                 if self.output[i] is False:
