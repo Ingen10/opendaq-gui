@@ -24,6 +24,7 @@ import threading
 import time
 import serial
 from wx.lib.agw.floatspin import FloatSpin
+from wx.lib.pubsub import Publisher
 
 import matplotlib
 matplotlib.use('WXAgg')
@@ -117,25 +118,9 @@ class ComThread (threading.Thread):
                 data = frame.daq.read_analog()
                 if frame.page1.versionHW == 2:
                     data /= frame.page1.multiplierList[frame.page1.range]
+                wx.CallAfter(Publisher().sendMessage, "newdata", data)
 
-                frame.page1.inputValue.Clear()
-                frame.page1.inputValue.AppendText(str(data))
-                self.data_packet.append(data)
-                self.x.append(float(data))
-                self.y.append(float((len(self.x)-1) * self.delay))
-                if(frame.page1.toolbar.mode == "pan/zoom"):
-                    continue
-                if(frame.page1.toolbar.mode == "zoom rect"):
-                    continue
-                frame.page1.canvas.mpl_disconnect(frame.page1.cidUpdate)
-                frame.page1.axes.cla()
-                frame.page1.axes.grid(color='gray', linestyle='dashed')
-                frame.page1.axes.plot(self.y, self.x)
-                frame.page1.canvas.draw()
-                frame.page1.cidUpdate = frame.page1.canvas.mpl_connect(
-                    'motion_notify_event', frame.page1.UpdateStatusBar)
-
-
+                
 class TimerThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
@@ -166,24 +151,15 @@ class TimerThread (threading.Thread):
         while self.running:
             time.sleep(self.delay)
             if self.counterFlag:
-                frame.page4.get_counter.Clear()
-                cnt = frame.daq.get_counter(0)
-                frame.page4.get_counter.AppendText(str(cnt))
+                counter = frame.daq.get_counter(0)
+                wx.CallAfter(Publisher().sendMessage, "counter_value", counter)
             if self.captureFlag:
-                frame.page4.get_capture.Clear()
-                mode, cnt = (
+                mode, capture = (
                     frame.daq.get_capture(frame.page4.rb.GetSelection()))
-                frame.page4.get_capture.AppendText(str(cnt))
+                wx.CallAfter(Publisher().sendMessage, "capture_value", capture)
             if self.encoderFlag:
-                cnt = frame.daq.get_encoder()
-                frame.page4.currentPosition.Clear()
-                frame.page4.currentPosition.AppendText(str(cnt[0]))
-                if frame.page4.encoderResolution != 0:
-                    cnt = cnt[0] * 100 / frame.page4.encoderResolution
-                    frame.page4.gauge.SetValue(pos=cnt)
-                else:
-                    frame.page4.gauge.SetValue(0)
-
+                encoder = frame.daq.get_encoder()[0]
+                wx.CallAfter(Publisher().sendMessage, "encoder_value", encoder)
 
 class MyCustomToolbar(NavigationToolbar2Wx):
     ON_CUSTOM_LEFT = wx.NewId()
@@ -307,6 +283,33 @@ class PageOne(wx.Panel):
         mainSizer.Add(plotSizer, 0, wx.ALL)
         self.SetSizerAndFit(mainSizer)
 
+        self.data_packet = []
+        self.x = []
+        self.y = []
+
+        # Create a publisher receiver
+        Publisher().subscribe(self.new_data, "newdata") 
+
+    def new_data(self, msg):
+        data = msg.data
+        if isinstance(msg.data, float):
+                self.inputValue.Clear()
+                self.inputValue.AppendText(str(data))
+                self.data_packet.append(data)
+                self.x.append(float(data))
+                self.y.append(float((len(self.x)-1) * self.rate / 1000))
+                if(self.toolbar.mode == "pan/zoom"):
+                    return
+                if(self.toolbar.mode == "zoom rect"):
+                    return
+                self.canvas.mpl_disconnect(frame.page1.cidUpdate)
+                self.axes.cla()
+                self.axes.grid(color='gray', linestyle='dashed')
+                self.axes.plot(self.y, self.x)
+                self.canvas.draw()
+                self.cidUpdate = frame.page1.canvas.mpl_connect(
+                    'motion_notify_event', frame.page1.UpdateStatusBar)
+            
     def UpdateStatusBar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
@@ -356,6 +359,9 @@ class PageOne(wx.Panel):
         pass
 
     def PlayEvent(self, event):
+        self.data_packet = []
+        self.x = []
+        self.y = []
         self.ch1 = self.editch1.GetCurrentSelection()
         self.ch2 = self.editch2.GetCurrentSelection()
         self.range = self.editrange.GetCurrentSelection()
@@ -492,7 +498,7 @@ class PageThree(wx.Panel):
         frame.daq.set_port_dir(self.status)
         valueInput = frame.daq.set_port(self.values)
         for i in range(6):
-            if self.status & (1 << i):
+            if valueInput & (1 << i):
                 if self.output[i] is False:
                     self.buttons[i].SetBitmapLabel(self.imageGreen)
                 else:
@@ -614,6 +620,34 @@ class PageFour(wx.Panel):
         verticalSizer.Add(grid, 0, wx.ALL, border=20)
         mainSizer.Add(verticalSizer, 0, wx.ALL, border=20)
         self.SetSizer(mainSizer)
+
+        #Create publisher receiver
+        Publisher().subscribe( self.refresh_counter, "counter_value")
+        Publisher().subscribe( self.refresh_capture, "capture_value")
+        Publisher().subscribe( self.refresh_encoder, "encoder_value")
+
+    def refresh_counter(self, msg):
+        if isinstance(msg.data, int):
+            self.get_counter.Clear()
+            self.get_counter.AppendText(str(msg.data))
+
+    def refresh_capture(self, msg):
+        if isinstance(msg.data, int):
+            capture = msg.data
+            self.get_capture.Clear()
+            self.get_capture.AppendText(str(capture))
+
+    def refresh_encoder(self, msg):
+        if isinstance(msg.data, int):
+            encoder = msg.data
+            self.currentPosition.Clear()
+            self.currentPosition.AppendText(str(encoder))
+            if self.encoderResolution != 0:
+                encoder = encoder * 100 / self.encoderResolution
+                self.gauge.SetValue(pos=encoder)
+            else:
+                self.gauge.SetValue(0)
+
 
     def setPWMEvent(self, event):
         self.setCapture.Enable(True)
