@@ -118,7 +118,7 @@ class ComThread (threading.Thread):
                 data = frame.daq.read_analog()
 
                 if frame.page_1.hw_ver == 2:
-                    data /= frame.page_1.multiplierList[frame.page_1.range]
+                    data /= frame.page_1.multiplier_list[frame.page_1.range]
                 wx.CallAfter(Publisher().sendMessage, "newdata", data)
 
 class TimerThread (threading.Thread):
