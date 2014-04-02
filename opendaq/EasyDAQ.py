@@ -199,13 +199,13 @@ class ComThread (threading.Thread):
                         offset = frame.offset[index_1]
                     data = self.transform_data(float(data_int * gain)) + offset
                     self.delay = frame.p.rate[self.ch[0]]/1000.0
+                    print "RATE2", self.delay
                     self.time = self.delay * len(self.x[self.ch[0]])
-                    if self.count > (1000 / frame.p.rate[self.ch[0]]):
-                        if frame.p.extern_flag[self.ch[0]] == 1:
-                            self.y[self.ch[0]].append(self.dif_time)
-                        else:
-                            self.y[self.ch[0]].append(self.time)
-                        self.x[self.ch[0]].append(float(data))
+                    if frame.p.extern_flag[self.ch[0]] == 1:
+                        self.y[self.ch[0]].append(self.dif_time)
+                    else:
+                        self.y[self.ch[0]].append(self.time)
+                    self.x[self.ch[0]].append(float(data))
             if self.stopping:
                 self.data_packet = []
                 self.ch = []
@@ -453,14 +453,14 @@ class StreamDialog(wx.Dialog):
                 dlg.ShowModal()
                 dlg.Destroy()
                 return 0
-        if self.ton + 1 >= self.period and self.enable[1].IsChecked():
+        if self.ton >= self.period and self.enable[1].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time on can not be greater than period", "Error!",
                 wx.OK | wx.ICON_WARNING)
             dlg.ShowModal()
             dlg.Destroy()
             return 0
-        if self.time_rise + 1 >= self.period and self.enable[3].IsChecked():
+        if self.time_rise >= self.period and self.enable[3].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time rise can not be greater than period", "Error!",
                 wx.OK | wx.ICON_WARNING)
@@ -546,7 +546,8 @@ class ConfigDialog (wx.Dialog):
         self.edit_samples.AppendText(str(frame.p.samples[index_1]))
         data_sizer.Add(self.edit_samples, pos=(1, 4))
         self.sample_list = (
-            "Continuous", "Single run: 20", "Single run:40", "Single run: 100")
+            "Continuous", "Single run: 20", "Single run: 40",
+            "Single run: 100")
         self.label_mode = wx.StaticText(self, label="Mode")
         data_sizer.Add(self.label_mode, pos=(2, 3))
         self.edit_mode = wx.ComboBox(
@@ -575,6 +576,7 @@ class ConfigDialog (wx.Dialog):
     def confirm_event(self, event):
         if self.edit_rate.GetLineText(0).isdigit():
             self.rate = int(self.edit_rate.GetLineText(0))
+            print "RATE1", self.rate
             if self.rate < 1 or self.rate > 65535:
                 dlg = wx.MessageDialog(
                     self, "Time can not be neither greater than 65535 nor \
@@ -756,8 +758,8 @@ class InterfazPanel(wx.Panel):
         self.SetSizerAndFit(main_sizer)
 
         #Create publisher receiver
-        Publisher().subscribe(self.refresh, "refresh") 
-        Publisher().subscribe(self.stop, "stop") 
+        Publisher().subscribe(self.refresh, "refresh")
+        Publisher().subscribe(self.stop, "stop")
 
     def refresh(self, msg):
         if(self.toolbar.mode == "pan/zoom"):
@@ -784,7 +786,6 @@ class InterfazPanel(wx.Panel):
         self.cid_update = self.canvas.mpl_connect(
             'motion_notify_event', self.update_status_bar)
 
-
     def stop(self, event):
         frame.p.axes.cla()
         frame.p.axes.grid(color='gray', linestyle='dashed')
@@ -805,7 +806,6 @@ class InterfazPanel(wx.Panel):
                     frame.daq.open()
         frame.p.stopping_label.SetLabel("")
         frame.p.button_play.Enable(True)
-
 
     def update_status_bar(self, event):
         if event.inaxes:
@@ -922,6 +922,8 @@ class InterfazPanel(wx.Panel):
                 self.num_point[index_1] = self.mode[index_1] = 0
             else:
                 self.num_point[index_1] = 20 * self.mode[index_1]
+                if self.mode[index_1] == 3:
+                    self.num_point[index_1] = 100
                 self.mode[index_1] = 1
             dlg.Destroy()
 
@@ -940,7 +942,7 @@ class InterfazPanel(wx.Panel):
                 else:
                     frame.daq.create_stream(i+1, self.rate[i])
                 frame.daq.setup_channel(
-                    i+1, self.num_point[i], self.mode[i])  # Mode continuous
+                    i+1, self.num_point[i], self.mode[i])
                 frame.daq.conf_channel(
                     i+1, 0, self.ch_1[i], self.ch_2[i], self.range[i],
                     self.samples[i])  # Analog input
