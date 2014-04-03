@@ -655,8 +655,8 @@ class PageFour(wx.Panel):
             encoder = msg.data
             self.current_position.Clear()
             self.current_position.AppendText(str(encoder))
-            if self.encoderResolution != 0:
-                encoder = encoder * 100 / self.encoderResolution
+            if self.encoder_resolution != 0:
+                encoder = encoder * 100 / self.encoder_resolution
                 self.gauge.SetValue(pos=encoder)
             else:
                 self.gauge.SetValue(0)
