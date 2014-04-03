@@ -199,7 +199,6 @@ class ComThread (threading.Thread):
                         offset = frame.offset[index_1]
                     data = self.transform_data(float(data_int * gain)) + offset
                     self.delay = frame.p.rate[self.ch[0]]/1000.0
-                    print "RATE2", self.delay
                     self.time = self.delay * len(self.x[self.ch[0]])
                     if frame.p.extern_flag[self.ch[0]] == 1:
                         self.y[self.ch[0]].append(self.dif_time)
@@ -256,6 +255,10 @@ class StreamDialog(wx.Dialog):
     def __init__(self, parent):
         # Call wxDialog's __init__ method
         wx.Dialog.__init__(self, parent, -1, 'Config', size=(200, 200))
+        if parent.frame.hw_ver == "m":
+            self.hw_ver = "m"
+        elif parent.frame.hw_ver == "s":
+            self.hw_ver = "s"
         box_sizer = wx.GridBagSizer(hgap=5, vgap=5)
         main_layout = wx.BoxSizer(wx.VERTICAL)
         horizontal_sizer = wx.GridBagSizer(hgap=5, vgap=5)
@@ -440,12 +443,20 @@ class StreamDialog(wx.Dialog):
         # waveform = 1 -> square
         cond_1 = (
             frame.p.waveform == 1 and (self.amplitude + self.offset > 4000 or (
-                self.offset < -4000)))
-
+                self.offset < -4000)) and self.hw_ver == "m")
         cond_2 = (
-            frame.p.waveform != 1 and self.amplitude + abs(self.offset) > 4000)
+            frame.p.waveform != 1 and self.amplitude + abs(self.offset) > 4000
+            and self.hw_ver == "m")
 
-        if cond_1 or cond_2:
+        cond_3 = (
+            frame.p.waveform == 0 and (self.amplitude + self.offset > 4000 or (
+                self.offset - self.amplitude < 0)) and self.hw_ver == "s")
+        cond_4 = (
+            frame.p.waveform != 0 and (self.amplitude + self.offset > 4000 or
+            self.offset < 0)
+            and self.hw_ver == "s")
+
+        if cond_1 or cond_2 or cond_3 or cond_4:
                 dlg = wx.MessageDialog(
                     self, "Amplitude or offset value out of range", "Error!",
                     wx.OK | wx.ICON_WARNING)
@@ -551,7 +562,7 @@ class ConfigDialog (wx.Dialog):
         self.label_mode = wx.StaticText(self, label="Mode")
         data_sizer.Add(self.label_mode, pos=(2, 3))
         self.edit_mode = wx.ComboBox(
-            self, size=(95, -1), choices=self.sample_list,
+            self, size=(-1, -1), choices=self.sample_list,
             style=wx.CB_READONLY)
         self.edit_mode.SetSelection(frame.p.mode[index_1])
         data_sizer.Add(self.edit_mode, pos=(2, 4))
@@ -576,11 +587,10 @@ class ConfigDialog (wx.Dialog):
     def confirm_event(self, event):
         if self.edit_rate.GetLineText(0).isdigit():
             self.rate = int(self.edit_rate.GetLineText(0))
-            print "RATE1", self.rate
             if self.rate < 1 or self.rate > 65535:
                 dlg = wx.MessageDialog(
-                    self, "Time can not be neither greater than 65535 nor \
-                    lower than 1", "Error!", wx.OK | wx.ICON_WARNING)
+                    self, "Time can not be neither greater than 65535 or "
+                    "lower than 1", "Error!", wx.OK | wx.ICON_WARNING)
                 dlg.ShowModal()
                 dlg.Destroy()
                 return 0
@@ -595,14 +605,15 @@ class ConfigDialog (wx.Dialog):
             self.samples = int(self.edit_samples.GetLineText(0))
             if self.samples < 1 or self.samples > 255:
                 dlg = wx.MessageDialog(
-                    self, "Samples can not be neither greater than 255 nor \
-                    lower than 1", "Error!", wx.OK | wx.ICON_WARNING)
+                    self, "Samples can not be neither greater than 255 or "
+                    "lower than 1", "Error!", wx.OK | wx.ICON_WARNING)
                 dlg.ShowModal()
                 dlg.Destroy()
                 return 0
         else:
             dlg = wx.MessageDialog(
-                self, "Not a valid time", "Error!", wx.OK | wx.ICON_WARNING)
+                self, "Not a valid number of samples", "Error!",
+                wx.OK | wx.ICON_WARNING)
             dlg.ShowModal()
             dlg.Destroy()
             return 0
@@ -860,6 +871,8 @@ class InterfazPanel(wx.Panel):
 
     def configure_stream(self, event):
         dlg = StreamDialog(self)
+        dlg.burst_mode.SetValue(self.burst_mode_stream_out)
+        dlg.burst_mode_event(0)
         if dlg.ShowModal() == wx.ID_OK:
             self.burst_mode_stream_out = dlg.burst_mode_flag
             if dlg.csv_flag:
@@ -881,7 +894,9 @@ class InterfazPanel(wx.Panel):
             if self.burst_mode_stream_out:
                 for i in range(3):
                     self.enable_check[i].SetValue(0)
-                    self.enable_check[i].Enable(False)
+            for i in range(3):
+                self.enable_check[i].Enable(not self.burst_mode_stream_out)
+
             self.enable_check[3].SetValue(0)
             self.enable_check[3].Enable(False)
         else:
@@ -1034,9 +1049,13 @@ class InterfazPanel(wx.Panel):
                 self.relation = int(
                     self.period_stream_out/self.rise_time_stream_out)
                 self.points = int(140/self.relation)  # Ideal n points
+                if self.points == 0:
+                    self.points = 1
                 self.interval = int(self.rise_time_stream_out/self.points)
                 self.interval += 1
                 self.points = int(self.rise_time_stream_out/self.interval)
+                if self.points == 0:
+                    self.points = 1
                 self.increment = int(self.amplitude_stream_out/self.points)
             self.init = int(self.offset_stream_out)
             self.buffer = []
@@ -1149,9 +1168,11 @@ class InitDlg(wx.Dialog):
         wx.Dialog.__init__(
             self, None, title="EasyDAQ", style=(wx.STAY_ON_TOP | wx.CAPTION))
         self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.horizontal_sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
         self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
         self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
+        self.horizontal_sizer_2.Add(self.gauge, wx.EXPAND)
         avaiable_ports = scan(num_ports=255, verbose=False)
         self.sample_list = []
         if len(avaiable_ports) != 0:
@@ -1159,17 +1180,20 @@ class InitDlg(wx.Dialog):
                 self.sample_list.append(nombre)
         self.label_hear = wx.StaticText(self, label="Select Serial Port")
         self.edit_hear = wx.ComboBox(
-            self, size=(95, -1), choices=self.sample_list,
+            self, size=(-1, -1), choices=self.sample_list,
             style=wx.CB_READONLY)
         self.edit_hear.SetSelection(0)
         self.horizontal_sizer.Add(self.label_hear, wx.EXPAND)
         self.horizontal_sizer.Add(self.edit_hear, wx.EXPAND)
         self.button_ok = wx.Button(self, label="OK")
         self.Bind(wx.EVT_BUTTON, self.ok_event, self.button_ok)
-        self.button_cancel = wx.Button(self, label="Cancel", pos=(115, 22))
+        self.button_cancel = wx.Button(self, label="Cancel")
         self.Bind(wx.EVT_BUTTON, self.cancel_event, self.button_cancel)
+        self.horizontal_sizer_2.Add(self.button_ok, wx.EXPAND)
+        self.horizontal_sizer_2.Add(self.button_cancel, wx.EXPAND)
         self.vertical_sizer.Add(self.horizontal_sizer, wx.EXPAND)
-        self.vertical_sizer.Add(self.button_ok, wx.EXPAND)
+        self.vertical_sizer.Add(self.horizontal_sizer_2, wx.EXPAND)
+
         self.gauge.Show(False)
         self.SetSizer(self.vertical_sizer)
         self.SetAutoLayout(1)
