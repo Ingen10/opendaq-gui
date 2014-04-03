@@ -19,6 +19,7 @@
 # along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+import os
 import wx
 import threading
 import fractions
@@ -36,6 +37,7 @@ from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 
 from opendaq import DAQ
+
 
 #-----------------------------------------------------------------------------
 # Find available serial ports.
@@ -1087,7 +1089,8 @@ class MainFrame(wx.Frame):
         self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(com_port)
         self.hw_ver = self.daq.hw_ver
-        icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
+	icon_path = os.path.join(os.path.dirname(__file__),'resources', 'icon64.ico')
+        icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()
         self.status_bar.SetFieldsCount(2)
@@ -1232,12 +1235,16 @@ class MyApp(wx.App):
         self.connected = ret
         return True
 
-if __name__ == "__main__":
+
+def main():
+    global frame, comunication_thread, timer_thread
     comunication_thread = ComThread()
     comunication_thread.start()
     timer_thread = TimerThread()
     timer_thread.start()
+
     app = MyApp(False)
+
     if app.connected:
         frame = MainFrame(app.com_port)
         frame.Centre()
@@ -1246,3 +1253,7 @@ if __name__ == "__main__":
     else:
         comunication_thread.stop_thread()
         timer_thread.stop_thread()
+
+
+if __name__ == "__main__":
+    main()

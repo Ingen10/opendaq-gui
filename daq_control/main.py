@@ -19,6 +19,7 @@
 # along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+import os
 import wx
 import threading
 import time
@@ -460,16 +461,24 @@ class PageThree(wx.Panel):
         self.status = self.values = 0
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
-        bm = wx.Image("../resources/red.jpg", wx.BITMAP_TYPE_ANY)
+	red_image_path = \
+	    os.path.join(os.path.dirname(__file__),'resources', 'red.jpg')
+        bm = wx.Image(red_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_red = bm.ConvertToBitmap()
-        bm = wx.Image("../resources/green.jpg", wx.BITMAP_TYPE_ANY)
+	green_image_path = \
+	    os.path.join(os.path.dirname(__file__),'resources', 'green.jpg')
+        bm = wx.Image(green_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_green = bm.ConvertToBitmap()
-        bm = wx.Image("../resources/switchon.jpg", wx.BITMAP_TYPE_ANY)
+	switchon_image_path = \
+	    os.path.join(os.path.dirname(__file__),'resources', 'switchon.jpg')
+        bm = wx.Image(switchon_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_on = bm.ConvertToBitmap()
-        bm = wx.Image("../resources/switchoff.jpg", wx.BITMAP_TYPE_ANY)
+	switchoff_image_path = \
+	    os.path.join(os.path.dirname(__file__),'resources', 'switchoff.jpg')
+        bm = wx.Image(switchoff_image_path , wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_off = bm.ConvertToBitmap()
         for i in range(6):
@@ -791,7 +800,8 @@ class MainFrame(wx.Frame):
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.daq = DAQ(port)
         self.Bind(wx.EVT_CLOSE, self.on_close)
-        icon = wx.Icon("../resources/icon64.ico", wx.BITMAP_TYPE_ICO)
+	icon_path = os.path.join(os.path.dirname(__file__),'resources', 'icon64.ico')
+        icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()
         self.status_bar.SetFieldsCount(2)
@@ -934,11 +944,15 @@ class MyApp(wx.App):
         self.connected = ret
         return True
 
-if __name__ == "__main__":
+
+def main():
+    global comunication_thread, frame, timer_thread, frame
     comunication_thread = ComThread()
     timer_thread = TimerThread()
     timer_thread.start()
+
     app = MyApp(False)
+
     if app.connected:
         frame = MainFrame(app.com_port)
         frame.Centre()
@@ -947,3 +961,7 @@ if __name__ == "__main__":
     else:
         comunication_thread.stop_thread()
         timer_thread.stop_thread()
+
+
+if __name__ == "__main__":
+    main()

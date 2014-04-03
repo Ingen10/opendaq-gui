@@ -639,10 +639,16 @@ class MyApp(wx.App):
         self.connected = ret
         return True
 
-if __name__ == "__main__":
+
+def main():
+    global frame
     app = MyApp(False)
     if app.com_port != 0:
         frame = MainFrame(app.com_port)
         frame.Centre()
         frame.Show()
         app.MainLoop()
+
+
+if __name__ == "__main__":
+    main()
