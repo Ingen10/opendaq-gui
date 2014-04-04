@@ -103,7 +103,8 @@ class TimerThread (threading.Thread):
 
     def run(self):
         while self.running:
-            time.sleep(self.delay)
+            # time.sleep(self.delay)
+            time.sleep(1)
             if self.drawing:
                 wx.CallAfter(Publisher().sendMessage, "refresh")
                 self.end_time = time.time()

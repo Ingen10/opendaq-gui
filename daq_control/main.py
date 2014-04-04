@@ -115,12 +115,12 @@ class ComThread (threading.Thread):
         while self.running_thread:
             time.sleep(1)
             while self.running:
-                time.sleep(self.delay)
                 data = frame.daq.read_analog()
-
                 if frame.page_1.hw_ver == 2:
                     data /= frame.page_1.multiplier_list[frame.page_1.range]
                 wx.CallAfter(Publisher().sendMessage, "newdata", data)
+                time.sleep(self.delay)
+
 
 class TimerThread (threading.Thread):
     def __init__(self):
@@ -253,8 +253,14 @@ class PageOne(wx.Panel):
         self.input_sizer.Add(grid, 0, wx.ALL, border=10)
         self.output_label = wx.StaticBox(self, -1, 'Analog output')
         self.output_sizer = wx.StaticBoxSizer(self.output_label, wx.HORIZONTAL)
-        self.edit_value = FloatSpin(
-            self, value=0, min_val=-4.0, max_val=4.0, increment=0.1, digits=3)
+        if hw_ver == 1:
+            self.edit_value = FloatSpin(
+                self, value=0, min_val=-4.0, max_val=4.0, increment=0.1,
+                digits=3)
+        elif hw_ver == 2:
+            self.edit_value = FloatSpin(
+                self, value=0, min_val=0, max_val=4.0, increment=0.1,
+                digits=3)
         self.Bind(
             wx.lib.agw.floatspin.EVT_FLOATSPIN, self.slider_change,
             self.edit_value)
@@ -295,7 +301,8 @@ class PageOne(wx.Panel):
         self.y = []
 
         # Create a publisher receiver
-        Publisher().subscribe(self.new_data, "newdata") 
+        Publisher().subscribe(self.new_data, "newdata")
+        Publisher().subscribe(self.clear_canvas, "clearcanvas")
 
     def new_data(self, msg):
         data = msg.data
@@ -316,6 +323,13 @@ class PageOne(wx.Panel):
                 self.canvas.draw()
                 self.cidUpdate = frame.page_1.canvas.mpl_connect(
                     'motion_notify_event', frame.page_1.UpdateStatusBar)
+
+    def clear_canvas(self, msg):
+        self.input_value.Clear()
+        self.axes.cla()
+        self.axes.grid(color='gray', linestyle='dashed')
+        self.axes.plot(self.y, self.x)
+        self.canvas.draw()
             
     def UpdateStatusBar(self, event):
         if event.inaxes:
@@ -373,9 +387,10 @@ class PageOne(wx.Panel):
         self.ch_2 = self.edit_ch_2.GetCurrentSelection()
         self.range = self.edit_range.GetCurrentSelection()
         self.rate = self.edit_rate.GetValue() * 1000
+        self.edit_rate.SetValue(self.edit_rate.GetValue())
+        self.edit_value.SetValue(self.edit_value.GetValue())
         if self.ch_1 == -1:
             frame.show_error_parameters()
-
             return
         if self.ch_2 == -1:
             frame.show_error_parameters()
@@ -400,6 +415,7 @@ class PageOne(wx.Panel):
         self.edit_range.Enable(False)
         self.edit_rate.Enable(False)
         frame.daq.set_led(3)
+        wx.CallAfter(Publisher().sendMessage, "clearcanvas", None)
         if comunication_thread.is_alive():
             comunication_thread.restart()
         else:
@@ -548,8 +564,9 @@ class PageThree(wx.Panel):
 
 
 class PageFour(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, page_1):
         wx.Panel.__init__(self, parent)
+        self.page_1 = page_1
         self.pwm_label = wx.StaticBox(self, -1, 'PWM:')
         self.pwm_grap_horizontal_sizer = wx.StaticBoxSizer(
             self.pwm_label, wx.VERTICAL)
@@ -572,7 +589,9 @@ class PageFour(wx.Panel):
         encoder_sizer = wx.GridBagSizer(hgap=20, vgap=20)
         self.period_label = wx.StaticText(self, label="Period (us):")
         self.duty_label = wx.StaticText(self, label="Duty (%):")
-        self.period_edit = wx.TextCtrl(self, style=wx.TE_CENTRE)
+        self.period_edit = (FloatSpin(
+            self, value=1000, min_val=1, max_val=65535, increment=1,
+            digits=0))
         self.duty_edit = wx.Slider(
             self, -1, 0, 0, 100, pos=(0, 0), size=(100, 50),
             style=wx.SL_HORIZONTAL | wx.SL_LABELS)
@@ -580,6 +599,10 @@ class PageFour(wx.Panel):
         self.Bind(wx.EVT_BUTTON, self.set_pwm_event, self.set_pwm)
         self.stop_pwm = wx.Button(self, label="Stop PWM")
         self.Bind(wx.EVT_BUTTON, self.stop_pwm_event, self.stop_pwm)
+        self.stop_pwm.Enable(False)
+        self.reset_pwm = wx.Button(self, label="Reset PWM")
+        self.Bind(wx.EVT_BUTTON, self.reset_pwm_event, self.reset_pwm)
+        self.reset_pwm.Enable(False)
         self.get_counter = wx.TextCtrl(self, style=wx.TE_READONLY)
         pwm_sizer.Add(self.period_label, 0, wx.ALL, border=5)
         pwm_sizer.Add(self.period_edit, 0, wx.ALL, border=5)
@@ -587,6 +610,7 @@ class PageFour(wx.Panel):
         pwm_sizer.Add(self.duty_edit, 0, wx.ALL, border=5)
         pwm_sizer.Add(self.set_pwm, 0, wx.ALL, border=5)
         pwm_sizer.Add(self.stop_pwm, 0, wx.ALL, border=5)
+        pwm_sizer.Add(self.reset_pwm, 0, wx.ALL, border=5)
         self.set_counter = wx.Button(self, label="Start counter")
         self.Bind(wx.EVT_BUTTON, self.start_counter, self.set_counter)
         self.stop_counter = wx.Button(self, label="Stop counter")
@@ -670,78 +694,55 @@ class PageFour(wx.Panel):
             else:
                 self.gauge.SetValue(0)
 
-
     def set_pwm_event(self, event):
-        self.set_capture.Enable(True)
-        self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
-        self.set_counter.Enable(True)
+        self.deactivate_starts()
+        self.stop_pwm.Enable(True)
+        self.reset_pwm.Enable(True)
         self.get_counter.Clear()
         self.get_capture.Clear()
         timer_thread.stop()
-        string = self.period_edit.GetLineText(0)
-        if string.isdigit():
-            self.period = int(string)
-            self.duty = self.duty_edit.GetValue() * 1023 / 100
-            frame.daq.init_pwm(self.duty, self.period)
-        else:
-            dlg = wx.MessageDialog(
-                self, "Not a valid value", "Error!", wx.OK | wx.ICON_WARNING)
-            dlg.ShowModal()
-            dlg.Destroy()
+        self.period = self.period_edit.GetValue()
+        self.period_edit.SetValue(self.period)
+        self.duty = self.duty_edit.GetValue() * 1023 / 100
+        frame.daq.init_pwm(self.duty, self.period)
 
     def start_counter(self, event):
         frame.daq.init_counter(0)
-        self.set_counter.Enable(False)
-        self.set_encoder.Enable(True)
-        self.set_capture.Enable(True)
-        self.stop_capture.Enable(False)
+        self.deactivate_starts()
         self.stop_counter.Enable(True)
-        self.stop_encoder.Enable(False)
         self.get_capture.Clear()
         timer_thread.start_counter()
 
     def start_capture(self, event):
         frame.daq.init_capture(2000)
-        self.set_capture.Enable(False)
-        self.set_encoder.Enable(False)
+        self.deactivate_starts()
         self.stop_capture.Enable(True)
-        self.set_counter.Enable(True)
-        self.stop_counter.Enable(False)
-        self.stop_encoder.Enable(False)
         self.get_counter.Clear()
         timer_thread.start_capture()
 
     def stop_capture_event(self, event):
         frame.daq.stop_capture()
-        self.set_counter.Enable(True)
-        self.set_capture.Enable(True)
-        self.set_encoder.Enable(True)
+        self.activate_starts()
         self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
-        self.stop_encoder.Enable(False)
         timer_thread.stop()
         self.get_counter.Clear()
         self.get_capture.Clear()
 
+    def reset_pwm_event(self, event):
+        self.stop_pwm_event(0)
+        self.set_pwm_event(0)
+
     def stop_pwm_event(self, event):
+        self.activate_starts()
+        self.reset_pwm.Enable(False)
+        self.stop_pwm.Enable(False)
         frame.daq.stop_capture()
-        self.set_counter.Enable(True)
-        self.set_capture.Enable(True)
-        self.set_encoder.Enable(True)
-        self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
-        self.stop_encoder.Enable(False)
         frame.daq.stop_pwm()
 
     def stop_counter_event(self, event):
         frame.daq.stop_capture()
+        self.activate_starts()
         self.set_counter.Enable(True)
-        self.set_capture.Enable(True)
-        self.set_encoder.Enable(True)
-        self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
-        self.stop_encoder.Enable(False)
         timer_thread.stop()
         self.get_counter.Clear()
         self.get_capture.Clear()
@@ -772,25 +773,28 @@ class PageFour(wx.Panel):
             self.encoder_resolution = 0
         self.encoder_value.Enable(False)
         frame.daq.init_encoder(self.encoder_resolution)
-        self.set_counter.Enable(True)
-        self.set_capture.Enable(True)
-        self.set_encoder.Enable(False)
-        self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
+        self.deactivate_starts()
         self.stop_encoder.Enable(True)
         timer_thread.start_encoder()
 
     def stop_encoder_event(self, event):
+        self.activate_starts()
         self.encoder_value.Enable(True)
         frame.daq.stop_encoder()
+        self.stop_encoder.Enable(False)
+        timer_thread.stop()
+        
+    def activate_starts(self):
         self.set_counter.Enable(True)
         self.set_capture.Enable(True)
         self.set_encoder.Enable(True)
-        self.stop_capture.Enable(False)
-        self.stop_counter.Enable(False)
-        self.stop_encoder.Enable(False)
-        timer_thread.stop()
-
+        self.set_pwm.Enable(True)
+        
+    def deactivate_starts(self):
+        self.set_counter.Enable(False)
+        self.set_capture.Enable(False)
+        self.set_encoder.Enable(False)
+        self.set_pwm.Enable(False)
 
 class MainFrame(wx.Frame):
     def __init__(self, port):
@@ -819,7 +823,7 @@ class MainFrame(wx.Frame):
         self.page_1.SetBackgroundColour('#ece9d8')
         self.page_3 = PageThree(self.note_book)
         self.page_3.SetBackgroundColour('#ece9d8')
-        self.page_4 = PageFour(self.note_book)
+        self.page_4 = PageFour(self.note_book, self.page_1)
         self.page_4.SetBackgroundColour('#ece9d8')
         # add the pages to the notebook with the label to show on the tab
         self.note_book.AddPage(self.page_1, "Analog I/O")
@@ -870,30 +874,34 @@ class MainFrame(wx.Frame):
 class InitDlg(wx.Dialog):
     def __init__(self):
         wx.Dialog.__init__(
-            self, None, title="DAQControl",
-            style=(wx.STAY_ON_TOP | wx.CAPTION))
+            self, None, title="EasyDAQ", style=(wx.STAY_ON_TOP | wx.CAPTION))
         self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.horizontal_sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
         self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
         self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
+        self.horizontal_sizer_2.Add(self.gauge, wx.EXPAND)
         avaiable_ports = scan(num_ports=255, verbose=False)
         self.sample_list = []
         if len(avaiable_ports) != 0:
             for n, nombre in avaiable_ports:
                 self.sample_list.append(nombre)
         self.label_hear = wx.StaticText(self, label="Select Serial Port")
-        self.edit_hear = (wx.ComboBox(
-            self, size=(95, -1), choices=self.sample_list,
-            style=wx.CB_READONLY))
+        self.edit_hear = wx.ComboBox(
+            self, size=(-1, -1), choices=self.sample_list,
+            style=wx.CB_READONLY)
         self.edit_hear.SetSelection(0)
         self.horizontal_sizer.Add(self.label_hear, wx.EXPAND)
         self.horizontal_sizer.Add(self.edit_hear, wx.EXPAND)
         self.button_ok = wx.Button(self, label="OK")
         self.Bind(wx.EVT_BUTTON, self.ok_event, self.button_ok)
-        self.button_cancel = wx.Button(self, label="Cancel", pos=(115, 22))
+        self.button_cancel = wx.Button(self, label="Cancel")
         self.Bind(wx.EVT_BUTTON, self.cancel_event, self.button_cancel)
+        self.horizontal_sizer_2.Add(self.button_ok, wx.EXPAND)
+        self.horizontal_sizer_2.Add(self.button_cancel, wx.EXPAND)
         self.vertical_sizer.Add(self.horizontal_sizer, wx.EXPAND)
-        self.vertical_sizer.Add(self.button_ok, wx.EXPAND)
+        self.vertical_sizer.Add(self.horizontal_sizer_2, wx.EXPAND)
+
         self.gauge.Show(False)
         self.SetSizer(self.vertical_sizer)
         self.SetAutoLayout(1)
