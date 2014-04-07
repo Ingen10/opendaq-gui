@@ -24,6 +24,7 @@ import wx
 import threading
 import time
 import serial
+from serial.tools.list_ports import comports
 from wx.lib.agw.floatspin import FloatSpin
 from wx.lib.pubsub import Publisher
 
@@ -114,11 +115,20 @@ class ComThread (threading.Thread):
         self.data_packet = []
         while self.running_thread:
             time.sleep(1)
+            counter = 0
             while self.running:
                 data = frame.daq.read_analog()
                 if frame.page_1.hw_ver == 2:
                     data /= frame.page_1.multiplier_list[frame.page_1.range]
-                wx.CallAfter(Publisher().sendMessage, "newdata", data)
+                frame.page_1.data_packet.append(data)
+                frame.page_1.x.append(float(data))
+                frame.page_1.y.append(
+                    float((len(frame.page_1.x)-1) * frame.page_1.rate / 1000))
+
+                counter += self.delay
+                if counter >= 1:
+                    counter = 0
+                    wx.CallAfter(Publisher().sendMessage, "newdata", data)
                 time.sleep(self.delay)
 
 
@@ -309,9 +319,6 @@ class PageOne(wx.Panel):
         if isinstance(msg.data, float):
                 self.input_value.Clear()
                 self.input_value.AppendText(str(data))
-                self.data_packet.append(data)
-                self.x.append(float(data))
-                self.y.append(float((len(self.x)-1) * self.rate / 1000))
                 if(self.toolbar.mode == "pan/zoom"):
                     return
                 if(self.toolbar.mode == "zoom rect"):
@@ -330,7 +337,7 @@ class PageOne(wx.Panel):
         self.axes.grid(color='gray', linestyle='dashed')
         self.axes.plot(self.y, self.x)
         self.canvas.draw()
-            
+
     def UpdateStatusBar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
@@ -477,24 +484,24 @@ class PageThree(wx.Panel):
         self.status = self.values = 0
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
-	red_image_path = \
-	    os.path.join(os.path.dirname(__file__),'resources', 'red.jpg')
+        red_image_path = \
+            os.path.join(os.path.dirname(__file__), 'resources', 'red.jpg')
         bm = wx.Image(red_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_red = bm.ConvertToBitmap()
-	green_image_path = \
-	    os.path.join(os.path.dirname(__file__),'resources', 'green.jpg')
+        green_image_path = \
+            os.path.join(os.path.dirname(__file__), 'resources', 'green.jpg')
         bm = wx.Image(green_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_green = bm.ConvertToBitmap()
-	switchon_image_path = \
-	    os.path.join(os.path.dirname(__file__),'resources', 'switchon.jpg')
+        switchon_image_path = os.path.join(
+            os.path.dirname(__file__), 'resources', 'switchon.jpg')
         bm = wx.Image(switchon_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_on = bm.ConvertToBitmap()
-	switchoff_image_path = \
-	    os.path.join(os.path.dirname(__file__),'resources', 'switchoff.jpg')
-        bm = wx.Image(switchoff_image_path , wx.BITMAP_TYPE_ANY)
+        switchoff_image_path = os.path.join(
+            os.path.dirname(__file__), 'resources', 'switchoff.jpg')
+        bm = wx.Image(switchoff_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_off = bm.ConvertToBitmap()
         for i in range(6):
@@ -570,7 +577,7 @@ class PageFour(wx.Panel):
         self.pwm_label = wx.StaticBox(self, -1, 'PWM:')
         self.pwm_grap_horizontal_sizer = wx.StaticBoxSizer(
             self.pwm_label, wx.VERTICAL)
-        self.capture_label = wx.StaticBox(self, -1, 'Capture:')
+        self.capture_label = wx.StaticBox(self, -1, 'Capture (us):')
         self.capture_grap_horizontal_sizer = wx.StaticBoxSizer(
             self.capture_label, wx.VERTICAL)
         self.counter_label = wx.StaticBox(self, -1, 'Counter:')
@@ -660,17 +667,20 @@ class PageFour(wx.Panel):
         self.counter_grap_horizontal_sizer.Add(counter_sizer, 0, wx.CENTRE)
         self.encoder_grap_horizontal_sizer.Add(encoder_sizer, 0, wx.CENTRE)
         grid.Add(self.pwm_grap_horizontal_sizer, flag=wx.EXPAND, pos=(1, 1))
-        grid.Add(self.capture_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 1))
-        grid.Add(self.counter_grap_horizontal_sizer, flag=wx.EXPAND, pos=(1, 0))
-        grid.Add(self.encoder_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 0))
+        grid.Add(
+            self.capture_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 1))
+        grid.Add(
+            self.counter_grap_horizontal_sizer, flag=wx.EXPAND, pos=(1, 0))
+        grid.Add(
+            self.encoder_grap_horizontal_sizer, flag=wx.EXPAND, pos=(0, 0))
         vertical_sizer.Add(grid, 0, wx.ALL, border=20)
         main_sizer.Add(vertical_sizer, 0, wx.ALL, border=20)
         self.SetSizer(main_sizer)
 
         #Create publisher receiver
-        Publisher().subscribe( self.refresh_counter, "counter_value")
-        Publisher().subscribe( self.refresh_capture, "capture_value")
-        Publisher().subscribe( self.refresh_encoder, "encoder_value")
+        Publisher().subscribe(self.refresh_counter, "counter_value")
+        Publisher().subscribe(self.refresh_capture, "capture_value")
+        Publisher().subscribe(self.refresh_encoder, "encoder_value")
 
     def refresh_counter(self, msg):
         if isinstance(msg.data, int):
@@ -681,6 +691,8 @@ class PageFour(wx.Panel):
         if isinstance(msg.data, int):
             capture = msg.data
             self.get_capture.Clear()
+            if not 0 < capture < 65000:
+                capture = "overflow"
             self.get_capture.AppendText(str(capture))
 
     def refresh_encoder(self, msg):
@@ -710,14 +722,14 @@ class PageFour(wx.Panel):
         frame.daq.init_counter(0)
         self.deactivate_starts()
         self.stop_counter.Enable(True)
-        self.get_capture.Clear()
+        self.get_counter.Clear()
         timer_thread.start_counter()
 
     def start_capture(self, event):
         frame.daq.init_capture(2000)
         self.deactivate_starts()
         self.stop_capture.Enable(True)
-        self.get_counter.Clear()
+        self.get_capture.Clear()
         timer_thread.start_capture()
 
     def stop_capture_event(self, event):
@@ -725,8 +737,6 @@ class PageFour(wx.Panel):
         self.activate_starts()
         self.stop_capture.Enable(False)
         timer_thread.stop()
-        self.get_counter.Clear()
-        self.get_capture.Clear()
 
     def reset_pwm_event(self, event):
         self.stop_pwm_event(0)
@@ -744,8 +754,6 @@ class PageFour(wx.Panel):
         self.activate_starts()
         self.set_counter.Enable(True)
         timer_thread.stop()
-        self.get_counter.Clear()
-        self.get_capture.Clear()
 
     def start_encoder_event(self, event):
         if self.mode_encoder.GetSelection() == 0:
@@ -783,18 +791,19 @@ class PageFour(wx.Panel):
         frame.daq.stop_encoder()
         self.stop_encoder.Enable(False)
         timer_thread.stop()
-        
+
     def activate_starts(self):
         self.set_counter.Enable(True)
         self.set_capture.Enable(True)
         self.set_encoder.Enable(True)
         self.set_pwm.Enable(True)
-        
+
     def deactivate_starts(self):
         self.set_counter.Enable(False)
         self.set_capture.Enable(False)
         self.set_encoder.Enable(False)
         self.set_pwm.Enable(False)
+
 
 class MainFrame(wx.Frame):
     def __init__(self, port):
@@ -804,7 +813,8 @@ class MainFrame(wx.Frame):
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.daq = DAQ(port)
         self.Bind(wx.EVT_CLOSE, self.on_close)
-	icon_path = os.path.join(os.path.dirname(__file__),'resources', 'icon64.ico')
+        icon_path = os.path.join(
+            os.path.dirname(__file__), 'resources', 'icon64.ico')
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()
@@ -874,18 +884,19 @@ class MainFrame(wx.Frame):
 class InitDlg(wx.Dialog):
     def __init__(self):
         wx.Dialog.__init__(
-            self, None, title="EasyDAQ", style=(wx.STAY_ON_TOP | wx.CAPTION))
+            self, None, title="DAQControl", style=(
+                wx.STAY_ON_TOP | wx.CAPTION))
         self.horizontal_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.horizontal_sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
         self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
         self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
         self.horizontal_sizer_2.Add(self.gauge, wx.EXPAND)
-        avaiable_ports = scan(num_ports=255, verbose=False)
+        avaiable_ports = list(comports())
         self.sample_list = []
         if len(avaiable_ports) != 0:
-            for n, nombre in avaiable_ports:
-                self.sample_list.append(nombre)
+            for nombre in avaiable_ports:
+                self.sample_list.append(nombre[0])
         self.label_hear = wx.StaticText(self, label="Select Serial Port")
         self.edit_hear = wx.ComboBox(
             self, size=(-1, -1), choices=self.sample_list,
@@ -914,7 +925,15 @@ class InitDlg(wx.Dialog):
             self.edit_hear.Show(False)
             self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sample_list[port_number])
+            try:
+                daq = DAQ(self.sample_list[port_number])
+            except:
+                dlg = wx.MessageDialog(
+                    self, "Port in use. Select another port", "Error",
+                    wx.OK | wx.ICON_WARNING)
+                dlg.ShowModal()
+                dlg.Destroy()
+                os.execl(sys.executable, sys.executable, * sys.argv)  # Restart
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(
@@ -954,7 +973,7 @@ class MyApp(wx.App):
 
 
 def main():
-    global comunication_thread, frame, timer_thread, frame
+    global comunication_thread, frame, timer_thread
     comunication_thread = ComThread()
     timer_thread = TimerThread()
     timer_thread.start()

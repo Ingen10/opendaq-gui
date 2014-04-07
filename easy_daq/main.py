@@ -28,6 +28,7 @@ from wx.lib.agw.floatspin import FloatSpin
 from wx.lib.pubsub import Publisher
 import csv
 import serial
+from serial.tools.list_ports import comports
 
 import numpy as np
 import matplotlib
@@ -103,7 +104,7 @@ class TimerThread (threading.Thread):
 
     def run(self):
         while self.running:
-            # time.sleep(self.delay)
+            #time.sleep(self.delay)
             time.sleep(1)
             if self.drawing:
                 wx.CallAfter(Publisher().sendMessage, "refresh")
@@ -454,9 +455,8 @@ class StreamDialog(wx.Dialog):
         cond_3 = (
             frame.p.waveform == 0 and (self.amplitude + self.offset > 4000 or (
                 self.offset - self.amplitude < 0)) and self.hw_ver == "s")
-        cond_4 = (
-            frame.p.waveform != 0 and (self.amplitude + self.offset > 4000 or
-            self.offset < 0)
+        cond_4 = (frame.p.waveform != 0 and (
+            self.amplitude + self.offset > 4000 or self.offset < 0)
             and self.hw_ver == "s")
 
         if cond_1 or cond_2 or cond_3 or cond_4:
@@ -567,7 +567,15 @@ class ConfigDialog (wx.Dialog):
         self.edit_mode = wx.ComboBox(
             self, size=(-1, -1), choices=self.sample_list,
             style=wx.CB_READONLY)
-        self.edit_mode.SetSelection(frame.p.mode[index_1])
+        if frame.p.mode[index_1] == 0:
+            mode = 0
+        elif frame.p.num_point[index_1] == 20:
+            mode = 1
+        elif frame.p.num_point[index_1] == 40:
+            mode = 2
+        else:
+            mode = 3
+        self.edit_mode.SetSelection(mode)
         data_sizer.Add(self.edit_mode, pos=(2, 4))
         self.ok_button = wx.Button(self, label="Confirm")
         self.Bind(wx.EVT_BUTTON, self.confirm_event, self.ok_button)
@@ -952,9 +960,6 @@ class InterfazPanel(wx.Panel):
                 frame.channel_state[i] = 1
                 self.channel.append(
                     [self.ch_1[i], self.ch_2[i], self.rate[i], self.range[i]])
-                if self.rate[i] < 10:
-                    self.num_point[i] = 30000
-                    self.mode[i] = 1
                 if self.extern_flag[i] == 1:
                     frame.daq.create_external(i+1, 0)
                 else:
@@ -1109,7 +1114,8 @@ class MainFrame(wx.Frame):
         self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(com_port)
         self.hw_ver = self.daq.hw_ver
-	icon_path = os.path.join(os.path.dirname(__file__),'resources', 'icon64.ico')
+        icon_path = os.path.join(
+            os.path.dirname(__file__), 'resources', 'icon64.ico')
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()
@@ -1177,11 +1183,11 @@ class InitDlg(wx.Dialog):
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
         self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
         self.horizontal_sizer_2.Add(self.gauge, wx.EXPAND)
-        avaiable_ports = scan(num_ports=255, verbose=False)
+        avaiable_ports = list(comports())
         self.sample_list = []
         if len(avaiable_ports) != 0:
-            for n, nombre in avaiable_ports:
-                self.sample_list.append(nombre)
+            for nombre in avaiable_ports:
+                self.sample_list.append(nombre[0])
         self.label_hear = wx.StaticText(self, label="Select Serial Port")
         self.edit_hear = wx.ComboBox(
             self, size=(-1, -1), choices=self.sample_list,
@@ -1210,7 +1216,15 @@ class InitDlg(wx.Dialog):
             self.edit_hear.Show(False)
             self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sample_list[port_number])
+            try:
+                daq = DAQ(self.sample_list[port_number])
+            except:
+                dlg = wx.MessageDialog(
+                    self, "Port in use. Select another port", "Error",
+                    wx.OK | wx.ICON_WARNING)
+                dlg.ShowModal()
+                dlg.Destroy()
+                os.execl(sys.executable, sys.executable, * sys.argv)  # Restart
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(

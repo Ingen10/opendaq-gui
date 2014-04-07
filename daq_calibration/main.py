@@ -19,12 +19,14 @@
 # along with opendaq.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+import os
 import wx
 import threading
 import time
 from wx.lib.agw.floatspin import FloatSpin
 import numpy
 import serial
+from serial.tools.list_ports import comports
 
 from opendaq import DAQ
 
@@ -571,11 +573,11 @@ class InitDlg(wx.Dialog):
         self.vertical_sizer = wx.BoxSizer(wx.VERTICAL)
         self.gauge = wx.Gauge(self, range=100, size=(100, 15))
         self.horizontal_sizer.Add(self.gauge, wx.EXPAND)
-        avaiable_ports = scan(num_ports=255, verbose=False)
+        avaiable_ports = list(comports())
         self.sample_list = []
         if len(avaiable_ports) != 0:
-            for n, nombre in avaiable_ports:
-                self.sample_list.append(nombre)
+            for nombre in avaiable_ports:
+                self.sample_list.append(nombre[0])
         self.label_hear = wx.StaticText(self, label="Select Serial Port")
         self.edit_hear = wx.ComboBox(
             self, size=(95, -1), choices=self.sample_list,
@@ -601,7 +603,15 @@ class InitDlg(wx.Dialog):
             self.edit_hear.Show(False)
             self.button_cancel.Show(False)
             self.gauge.Show()
-            daq = DAQ(self.sample_list[port_number])
+            try:
+                daq = DAQ(self.sample_list[port_number])
+            except:
+                dlg = wx.MessageDialog(
+                    self, "Port in use. Select another port", "Error",
+                    wx.OK | wx.ICON_WARNING)
+                dlg.ShowModal()
+                dlg.Destroy()
+                os.execl(sys.executable, sys.executable, * sys.argv)  # Restart
             try:
                 daq.get_info()
                 dlg = wx.MessageDialog(
