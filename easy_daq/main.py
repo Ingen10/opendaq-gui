@@ -397,7 +397,7 @@ class StreamDialog(wx.Dialog):
                     dlg.Destroy()
         # Calibration
         for i in range(len(self.csv_buffer)):
-            self.csv_buffer[i] = calibration(int(round(self.csv_buffer[i])))
+            self.csv_buffer[i] = (int(round(self.csv_buffer[i]))/1000.0)
         dlg.Destroy()
         self.csv_flag = 1
         for i in range(4):
@@ -1101,7 +1101,7 @@ class InterfazPanel(wx.Panel):
             if info[1] < 110:
                 self.buffer[i] = dac_value
             else:
-                self.buffer[i] = calibration(int(round(dac_value)))
+                self.buffer[i] = (int(round(dac_value))/1000.0)
         if len(self.buffer) >= 140:
             self.buffer = self.buffer[:140]
 
@@ -1251,18 +1251,6 @@ class InitDlg(wx.Dialog):
     def cancel_event(self, event):
         self.port = 0
         self.EndModal(0)
-
-
-def calibration(value):
-    if not -4096 <= value < 4096:
-        raise ValueError('DAQ voltage out of range')
-    value *= frame.daq.dac_gain
-    if frame.hw_ver == "s":
-        value *= 2
-    data = (value / 1000.0 + frame.daq.dac_offset + 4096) * 2
-    if frame.hw_ver == "s" and data < 0:
-        data = 0
-    return data
 
 
 class MyApp(wx.App):

@@ -115,21 +115,28 @@ class ComThread (threading.Thread):
         self.data_packet = []
         while self.running_thread:
             time.sleep(1)
-            counter = 0
+            time_to_repaint = 0
+            time_to_capture = self.delay
             while self.running:
-                data = frame.daq.read_analog()
-                if frame.page_1.hw_ver == 2:
-                    data /= frame.page_1.multiplier_list[frame.page_1.range]
-                frame.page_1.data_packet.append(data)
-                frame.page_1.x.append(float(data))
-                frame.page_1.y.append(
-                    float((len(frame.page_1.x)-1) * frame.page_1.rate / 1000))
+                time.sleep(0.1)
+                time_to_repaint += 0.1
+                time_to_capture += 0.1
+                
+                if time_to_capture >= self.delay:
+                    time_to_capture = 0
+                    data = frame.daq.read_analog()
+                    if frame.page_1.hw_ver == 2:
+                        data /= (
+                            frame.page_1.multiplier_list[frame.page_1.range])
+                    frame.page_1.data_packet.append(data)
+                    frame.page_1.x.append(float(data))
+                    frame.page_1.y.append(
+                        float((len(frame.page_1.x)-1) * (
+                            frame.page_1.rate / 1000)))
 
-                counter += self.delay
-                if counter >= 1:
-                    counter = 0
+                if time_to_repaint >= 0.2:
+                    time_to_repaint = 0
                     wx.CallAfter(Publisher().sendMessage, "newdata", data)
-                time.sleep(self.delay)
 
 
 class TimerThread (threading.Thread):
@@ -529,6 +536,18 @@ class PageThree(wx.Panel):
         main_sizer.Add(grid, 0, wx.ALL, border=20)
         self.SetSizerAndFit(main_sizer)
 
+    def deactivate_digital(self, number):
+        self.label[number-1].Enable(False)
+        self.rb[number-1].Enable(False)
+        self.buttons[number-1].Enable(False)
+
+
+    def activate_digital(self, number):
+        self.label[number-1].Enable(True)
+        self.rb[number-1].Enable(True)
+        self.buttons[number-1].Enable(True)
+
+
     def update_event(self, event):
         self.status = 0
         for i in range(6):
@@ -752,7 +771,7 @@ class PageFour(wx.Panel):
     def stop_counter_event(self, event):
         frame.daq.stop_capture()
         self.activate_starts()
-        self.set_counter.Enable(True)
+        self.stop_counter.Enable(False)
         timer_thread.stop()
 
     def start_encoder_event(self, event):
@@ -782,11 +801,13 @@ class PageFour(wx.Panel):
         self.encoder_value.Enable(False)
         frame.daq.init_encoder(self.encoder_resolution)
         self.deactivate_starts()
+        frame.page_3.deactivate_digital(6)
         self.stop_encoder.Enable(True)
         timer_thread.start_encoder()
 
     def stop_encoder_event(self, event):
         self.activate_starts()
+        frame.page_3.activate_digital(6)
         self.encoder_value.Enable(True)
         frame.daq.stop_encoder()
         self.stop_encoder.Enable(False)
@@ -797,12 +818,14 @@ class PageFour(wx.Panel):
         self.set_capture.Enable(True)
         self.set_encoder.Enable(True)
         self.set_pwm.Enable(True)
+        frame.page_3.activate_digital(5)
 
     def deactivate_starts(self):
         self.set_counter.Enable(False)
         self.set_capture.Enable(False)
         self.set_encoder.Enable(False)
         self.set_pwm.Enable(False)
+        frame.page_3.deactivate_digital(5)
 
 
 class MainFrame(wx.Frame):
