@@ -467,14 +467,21 @@ class StreamDialog(wx.Dialog):
                 dlg.ShowModal()
                 dlg.Destroy()
                 return 0
-        if self.ton >= self.period and self.enable[1].IsChecked():
+
+        t_on = self.ton
+        rise_time = self.time_rise
+        if self.burst_mode.GetValue():
+            t_on /= 100
+            rise_time /= 100
+
+        if t_on >= self.period and self.enable[1].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time on can not be greater than period", "Error!",
                 wx.OK | wx.ICON_WARNING)
             dlg.ShowModal()
             dlg.Destroy()
             return 0
-        if self.time_rise >= self.period and self.enable[3].IsChecked():
+        if rise_time >= self.period and self.enable[3].IsChecked():
             dlg = wx.MessageDialog(
                 self, "Time rise can not be greater than period", "Error!",
                 wx.OK | wx.ICON_WARNING)
@@ -896,7 +903,13 @@ class InterfazPanel(wx.Panel):
                 self.signal_stream_out = dlg.signal
                 self.rise_time_stream_out = dlg.time_rise
                 self.time_on_stream_out = dlg.ton
-                self.signal_create()
+                burst_mode = False
+                if dlg.burst_mode.GetValue():
+                    self.rise_time_stream_out /= 100
+                    self.time_on_stream_out /= 100
+                    burst_mode = True
+
+                self.signal_create(burst_mode)
         dlg.Destroy()
         self.stream_enable(0)
 
@@ -1002,7 +1015,7 @@ class InterfazPanel(wx.Panel):
         comunication_thread.stop()
         timer_thread.stop()
 
-    def signal_create(self):
+    def signal_create(self, burst_mode):
         if self.signal_stream_out == 0:
             # Sine
             if self.period_stream_out < 140:
@@ -1100,10 +1113,20 @@ class InterfazPanel(wx.Panel):
             info = self.frame.daq.get_info()
             if info[1] < 110:
                 self.buffer[i] = dac_value
-            else:
+            elif info[1] < 114:
                 self.buffer[i] = (int(round(dac_value))/1000.0)
+            else:
+                if self.frame.hw_ver == "s":
+                    self.buffer[i] = (int(round(dac_value))/2000.0)
+                if self.frame.hw_ver == "m":
+                    self.buffer[i] = (int(round(dac_value))/1000.0)
+
         if len(self.buffer) >= 140:
             self.buffer = self.buffer[:140]
+
+        if burst_mode:
+            self.rise_time_stream_out *= 100
+            self.time_on_stream_out *= 100
 
 
 class MainFrame(wx.Frame):
