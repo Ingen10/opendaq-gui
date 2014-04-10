@@ -118,7 +118,7 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
         if result == wx.ID_OK:
             self.Destroy()
-            frame.daq.close()
+            self.daq.close()
 
     def show_error_parameters(self):
         dlg = wx.MessageDialog(
@@ -130,6 +130,7 @@ class MainFrame(wx.Frame):
 class AdcPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
+        self.frame = frame
         self.status = self.values = 0
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         values_sizer = wx.GridBagSizer(hgap=8, vgap=8)
@@ -255,9 +256,9 @@ class AdcPage(wx.Panel):
                 self.gain_label[i].Label = "A%d" % (i+1)
                 self.selection.Append("A%d" % (i+1))
                 self.gains_edit[i].Clear()
-                self.gains_edit[i].AppendText(str(frame.adc_gains[i+1]))
+                self.gains_edit[i].AppendText(str(self.frame.adc_gains[i+1]))
                 self.offset_edit[i].Clear()
-                self.offset_edit[i].AppendText(str(frame.adc_offset[i+1]))
+                self.offset_edit[i].AppendText(str(self.frame.adc_offset[i+1]))
             self.selection.SetSelection(0)
         if self.edit_range.GetValue() == "DE":
             self.selection.Clear()
@@ -271,33 +272,33 @@ class AdcPage(wx.Panel):
             self.selection.SetSelection(0)
             for i in range(8):
                 self.gains_edit[i].Clear()
-                self.gains_edit[i].AppendText(str(frame.adc_gains[i+9]))
+                self.gains_edit[i].AppendText(str(self.frame.adc_gains[i+9]))
                 self.offset_edit[i].Clear()
-                self.offset_edit[i].AppendText(str(frame.adc_offset[i+9]))
+                self.offset_edit[i].AppendText(str(self.frame.adc_offset[i+9]))
 
     def update_event(self, event):
         self.range = self.edit_range.GetCurrentSelection()
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             input = self.selection.GetCurrentSelection()+1
         button = event.GetEventObject()
         index1 = button.GetId()-100
-        if frame.hw_ver == "m":
-            frame.daq.conf_adc(8, 0, self.range, 20)
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "m":
+            self.frame.daq.conf_adc(8, 0, self.range, 20)
+        if self.frame.hw_ver == "s":
             if self.range == 0:  # SE
-                frame.daq.conf_adc(input)
+                self.frame.daq.conf_adc(input)
             if self.range == 1:  # DE
-                frame.daq.conf_adc(input, 1)
+                self.frame.daq.conf_adc(input, 1)
         time.sleep(0.5)
-        data_int = frame.daq.read_adc()
+        data_int = self.frame.daq.read_adc()
         time.sleep(0.5)
-        data_int = frame.daq.read_adc()  # Repeat for stabilizing
+        data_int = self.frame.daq.read_adc()  # Repeat for stabilizing
         self.adc_values[index1].Clear()
         self.adc_values[index1].AppendText(str(data_int))
 
     def get_values_event(self, event):
         self.range = self.edit_range.GetCurrentSelection()
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             sel = self.selection.GetCurrentSelection()
         self.x = []
         self.y = []
@@ -305,45 +306,45 @@ class AdcPage(wx.Panel):
             self.y.append(int(self.value_edit[i].GetValue() * 1000))
             self.x.append(int(self.adc_values[i].GetLineText(0)))
         r = numpy.polyfit(self.x, self.y, 1)
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             self.slope = abs(int(r[0] * 100000))
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             self.slope = abs(int(r[0] * 10000))
         self.intercept = int(r[1])
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             self.gains_edit[self.range].Clear()
             self.gains_edit[self.range].AppendText(str(self.slope))
             self.offset_edit[self.range].Clear()
             self.offset_edit[self.range].AppendText(str(self.intercept))
-            frame.adc_gains[self.range+1] = self.slope
-            frame.adc_offset[self.range+1] = self.intercept
-        if frame.hw_ver == "s":
+            self.frame.adc_gains[self.range+1] = self.slope
+            self.frame.adc_offset[self.range+1] = self.intercept
+        if self.frame.hw_ver == "s":
             self.gains_edit[sel].Clear()
             self.gains_edit[sel].AppendText(str(self.slope))
             self.offset_edit[sel].Clear()
             self.offset_edit[sel].AppendText(str(self.intercept))
             if self.range == 0:  # SE
-                frame.adc_gains[sel+1] = self.slope
-                frame.adc_offset[sel+1] = self.intercept
+                self.frame.adc_gains[sel+1] = self.slope
+                self.frame.adc_offset[sel+1] = self.intercept
             if self.range == 1:  # DE
-                frame.adc_gains[sel+9] = self.slope
-                frame.adc_offset[sel+9] = self.intercept
-        frame.daq.gains = frame.adc_gains
-        frame.daq.offsets = frame.adc_offset
+                self.frame.adc_gains[sel+9] = self.slope
+                self.frame.adc_offset[sel+9] = self.intercept
+        self.frame.daq.gains = self.frame.adc_gains
+        self.frame.daq.offsets = self.frame.adc_offset
         self.save_calibration()
 
     def update_dac(self, event):
-        frame.daq.set_analog(self.edit_dac.GetValue())
+        self.frame.daq.set_analog(self.edit_dac.GetValue())
 
     def save_calibration(self):
         self.slope = []
         self.intercept = []
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             for i in range(5):
                 self.slope.append(int(self.gains_edit[i].GetLineText(0)))
                 self.intercept.append(int(self.offset_edit[i].GetLineText(0)))
             self.flag = "M"
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             if self.edit_range.Value == "SE":
                 self.flag = "SE"
                 for i in range(8):
@@ -356,7 +357,7 @@ class AdcPage(wx.Panel):
                     self.slope.append(int(self.gains_edit[i].GetLineText(0)))
                     self.intercept.append(
                         int(self.offset_edit[i].GetLineText(0)))
-        frame.daq.set_cal(self.slope, self.intercept, self.flag)
+        self.frame.daq.set_cal(self.slope, self.intercept, self.flag)
 
     def export_event(self, event):
         dlg = wx.TextEntryDialog(
@@ -378,20 +379,21 @@ class AdcPage(wx.Panel):
 
     def export_calibration(self, file, id):
         output_file = open(file, 'w')
-        model = frame.hw_ver.upper()
+        model = self.frame.hw_ver.upper()
         output_file.write(
             "CALIBRATION REPORT OPENDAQ-" + model + ": " + id + "\n\n")
         output_file.write("DAC CALIBRATION\n")
         output_file.write(
-            "Slope: " + str(frame.dac_gain) + "    Intercept: " +
-            str(frame.dac_offset) + "\n\n")
+            "Slope: " + str(self.frame.dac_gain) + "    Intercept: " +
+            str(self.frame.dac_offset) + "\n\n")
         output_file.write("ADC CALIBRATION\n")
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             for i in range(1, 9):
                 output_file.write("A%d:\n" % i)
                 output_file.write(
-                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
-                    str(frame.adc_offset[i]) + "\n")
+                    "Slope: " + str(self.frame.adc_gains[i]) + "    "
+                    "Intercept: " +
+                    str(self.frame.adc_offset[i]) + "\n")
             output_file.write("\n")
             for i in range(9, 17):
                 if i % 2:
@@ -400,14 +402,16 @@ class AdcPage(wx.Panel):
                     output = "A" + str(i-8) + "-A" + str(i-9) + ":\n"
                 output_file.write(output)
                 output_file.write(
-                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
-                    str(frame.adc_offset[i]) + "\n")
-        if frame.hw_ver == "m":
+                    "Slope: " + str(self.frame.adc_gains[i]) + "    "
+                    "Intercept: " +
+                    str(self.frame.adc_offset[i]) + "\n")
+        if self.frame.hw_ver == "m":
             for i in range(1, 6):
                 output_file.write("Gain%d:\n" % i)
                 output_file.write(
-                    "Slope: " + str(frame.adc_gains[i]) + "    Intercept: " +
-                    str(frame.adc_offset[i]) + "\n")
+                    "Slope: " + str(self.frame.adc_gains[i]) + "    "
+                    "Intercept: " +
+                    str(self.frame.adc_offset[i]) + "\n")
         dlg = (wx.MessageDialog(
             self, "Report saved", "Report saved", wx.OK | wx.ICON_QUESTION))
         dlg.ShowModal()
@@ -417,6 +421,7 @@ class AdcPage(wx.Panel):
 class DacPage(wx.Panel):
     def __init__(self, parent, gains, offset, frame):
         wx.Panel.__init__(self, parent)
+        self.frame = frame
         self.status = self.values = 0
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         values_sizer = wx.GridBagSizer(hgap=8, vgap=8)
@@ -525,12 +530,12 @@ class DacPage(wx.Panel):
         self.gains_edit.AppendText(str(self.slope))
         self.offset_edit.Clear()
         self.offset_edit.AppendText(str(self.intercept))
-        frame.adc_gains[0] = self.slope
-        frame.adc_offset[0] = self.intercept
-        frame.dac_gain = self.slope
-        frame.dac_offset = self.intercept
-        frame.daq.dac_gain = self.slope
-        frame.daq.dac_offset = self.intercept
+        self.frame.adc_gains[0] = self.slope
+        self.frame.adc_offset[0] = self.intercept
+        self.frame.dac_gain = self.slope
+        self.frame.dac_offset = self.intercept
+        self.frame.daq.dac_gain = self.slope
+        self.frame.daq.dac_offset = self.intercept
         self.save_calibration()
 
     def reset_event(self, event):
@@ -541,15 +546,15 @@ class DacPage(wx.Panel):
         self.read_dac = numpy.zeros(5)
 
     def check_dac_event(self, event):
-        frame.daq.set_analog(self.edit_check.GetValue())
+        self.frame.daq.set_analog(self.edit_check.GetValue())
 
     def update_dac(self, event):
-        frame.daq.set_dac((self.edit_dac.GetValue() * 1000 + 4096) * 2)
+        self.frame.daq.set_dac((self.edit_dac.GetValue() * 1000 + 4096) * 2)
 
     def save_calibration(self):
-        frame.daq.dac_gain = self.slope
-        frame.daq.dac_offset = self.intercept
-        frame.daq.set_dac_cal(self.slope, self.intercept)
+        self.frame.daq.dac_gain = self.slope
+        self.frame.daq.dac_offset = self.intercept
+        self.frame.daq.set_dac_cal(self.slope, self.intercept)
 
 
 class InitThread (threading.Thread):
@@ -651,7 +656,6 @@ class MyApp(wx.App):
 
 
 def main():
-    global frame
     app = MyApp(False)
     if app.com_port != 0:
         frame = MainFrame(app.com_port)

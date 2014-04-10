@@ -87,7 +87,8 @@ def scan(num_ports=20, verbose=True):
 
 
 class TimerThread (threading.Thread):
-    def __init__(self):
+    def __init__(self, frame):
+        self.frame = frame
         threading.Thread.__init__(self)
         self.running = 1
         self.drawing = self.last_length = self.current_length = 0
@@ -112,7 +113,8 @@ class TimerThread (threading.Thread):
 
 
 class ComThread (threading.Thread):
-    def __init__(self):
+    def __init__(self, frame):
+        self.frame = frame
         threading.Thread.__init__(self)
         self.running = 1
         self.x = [[], [], [], []]
@@ -133,17 +135,17 @@ class ComThread (threading.Thread):
         self.x = [[], [], [], []]
         self.y = [[], [], [], []]
         self.data_packet = []
-        frame.set_voltage(0.8)
+        self.frame.set_voltage(0.8)
         self.streaming = 1
         self.count = 0
-        frame.daq.start()
+        self.frame.daq.start()
         time_list = []
         for i in range(4):
-            time_list.append(int(frame.p.rate[i]))
+            time_list.append(int(self.frame.p.rate[i]))
         self.thread_sleep = min(time_list)/4
         for i in range(3):
-            if (frame.p.enable_check[i+1].GetValue()):
-                value = int(frame.p.rate[i+1])
+            if (self.frame.p.enable_check[i+1].GetValue()):
+                value = int(self.frame.p.rate[i+1])
                 if value < self.thread_sleep:
                     self.thread_sleep = value
         if self.thread_sleep < 10:
@@ -152,6 +154,7 @@ class ComThread (threading.Thread):
             self.thread_sleep /= 2000.0
 
     def run(self):
+        frame = self.frame
         self.running = 1
         self.stopping = self.streaming = 0
         self.data_packet = []
@@ -160,7 +163,7 @@ class ComThread (threading.Thread):
             if self.streaming:
                 self.data_packet = []
                 self.ch = []
-                ret = frame.daq.get_stream(self.data_packet, self.ch)
+                ret = self.frame.daq.get_stream(self.data_packet, self.ch)
                 if ret == 0:
                     continue
                 if ret == 2:
@@ -249,19 +252,21 @@ class ComThread (threading.Thread):
                 self.stopping = 0
 
     def transform_data(self, data):
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             return data / 100000
-        if frame.hw_ver == "s":
+        if self.frame.hw_ver == "s":
             return data / 10000
 
 
 class StreamDialog(wx.Dialog):
     def __init__(self, parent):
         # Call wxDialog's __init__ method
+        self.frame = parent.frame
+        frame = self.frame
         wx.Dialog.__init__(self, parent, -1, 'Config', size=(200, 200))
-        if parent.frame.hw_ver == "m":
+        if frame.hw_ver == "m":
             self.hw_ver = "m"
-        elif parent.frame.hw_ver == "s":
+        elif frame.hw_ver == "s":
             self.hw_ver = "s"
         box_sizer = wx.GridBagSizer(hgap=5, vgap=5)
         main_layout = wx.BoxSizer(wx.VERTICAL)
@@ -409,6 +414,7 @@ class StreamDialog(wx.Dialog):
         self.offset_edit.Enable(False)
 
     def submit_event(self, event):
+        frame = self.frame
         if frame.daq.measuring:
             dlg = wx.MessageDialog(
                 self, "openDAQ is measuring. Stop first.", "Stop first",
@@ -505,6 +511,8 @@ class StreamDialog(wx.Dialog):
 class ConfigDialog (wx.Dialog):
     def __init__(self, parent, index_1):
         # Call wxDialog's __init__ method
+        self.frame = parent.frame
+        frame = self.frame
         wx.Dialog.__init__(self, parent, -1, 'Config', size=(200, 200))
         data_sizer = wx.GridBagSizer(hgap=5, vgap=5)
         main_layout = wx.BoxSizer(wx.HORIZONTAL)
@@ -638,7 +646,7 @@ class ConfigDialog (wx.Dialog):
         self.EndModal(wx.ID_OK)
 
     def edit_ch_2_change(self, event):
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             return
         value = self.edit_ch_2.GetValue()
         if value == "AGND":
@@ -650,7 +658,7 @@ class ConfigDialog (wx.Dialog):
             self.label_range.Enable(True)
 
     def edit_ch_1_change(self, event):
-        if frame.hw_ver == "m":
+        if self.frame.hw_ver == "m":
             return
         value = self.edit_ch_1.GetValue()
         self.edit_ch_2.Clear()
@@ -795,19 +803,19 @@ class InterfazPanel(wx.Panel):
             return
         if(self.toolbar.mode == "zoom rect"):
             return
-        self.canvas.mpl_disconnect(frame.p.cid_update)
+        self.canvas.mpl_disconnect(self.frame.p.cid_update)
         try:
             self.axes.clear()
             self.axes.autoscale(False)
             self.axes.grid(color='gray', linestyle='dashed')
             for i in range(4):
                 if(len(
-                    comunication_thread.y[i]) ==
-                        len(comunication_thread.x[i])):
+                    self.frame.comunication_thread.y[i]) ==
+                        len(self.frame.comunication_thread.x[i])):
                             self.axes.plot(
-                                comunication_thread.y[i],
-                                comunication_thread.x[i],
-                                color=frame.colors[i])
+                                self.frame.comunication_thread.y[i],
+                                self.frame.comunication_thread.x[i],
+                                color=self.frame.colors[i])
             self.canvas.draw()
             self.axes.autoscale(True)
         except:
@@ -816,12 +824,13 @@ class InterfazPanel(wx.Panel):
             'motion_notify_event', self.update_status_bar)
 
     def stop(self, event):
+        frame = self.frame
         frame.p.axes.cla()
         frame.p.axes.grid(color='gray', linestyle='dashed')
         for i in range(4):
             frame.p.axes.plot(
-                comunication_thread.y[i],
-                comunication_thread.x[i], color=frame.colors[i])
+                frame.comunication_thread.y[i],
+                frame.comunication_thread.x[i], color=frame.colors[i])
         frame.p.canvas.draw()
         frame.daq.flush()
         for i in range(4):
@@ -839,7 +848,7 @@ class InterfazPanel(wx.Panel):
     def update_status_bar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            frame.status_bar.SetStatusText(
+            self.frame.status_bar.SetStatusText(
                 ("x= " + "%.4g" % x + "  y=" + "%.4g" % y), 1)
 
     def add_toolbar(self):
@@ -868,6 +877,7 @@ class InterfazPanel(wx.Panel):
         dlg.Destroy()
 
     def save_as_csv_event(self, event):
+        comunication_thread = self.frame.comunication_thread
         self.directory_name = ''
         dlg = wx.FileDialog(
             self, "Choose a file", self.directory_name, "", "*.odq", wx.OPEN)
@@ -929,6 +939,7 @@ class InterfazPanel(wx.Panel):
                     self.enable_check[i].Enable(True)
 
     def configure_event(self, event):
+        frame = self.frame
         wx.SetCursor(wx.StockCursor(wx.CURSOR_HAND))
         index_1 = event.GetEventObject().GetId()-100
         dlg = ConfigDialog(self, index_1)
@@ -967,6 +978,7 @@ class InterfazPanel(wx.Panel):
             dlg.Destroy()
 
     def play_event(self, event):
+        frame = self.frame
         self.channel = []
         for i in range(4):
             if self.enable_check[i].GetValue():
@@ -1007,13 +1019,13 @@ class InterfazPanel(wx.Panel):
                 frame.daq.load_signal(self.inter_buffer, self.init)
         self.button_play.Enable(False)
         self.button_stop.Enable(True)
-        timer_thread.start_drawing()
-        comunication_thread.restart()
+        self.frame.timer_thread.start_drawing()
+        self.frame.comunication_thread.restart()
 
     def stop_event(self, event):
         self.button_stop.Enable(False)
-        comunication_thread.stop()
-        timer_thread.stop()
+        self.frame.comunication_thread.stop()
+        self.frame.timer_thread.stop()
 
     def signal_create(self, burst_mode):
         if self.signal_stream_out == 0:
@@ -1131,6 +1143,8 @@ class InterfazPanel(wx.Panel):
 
 class MainFrame(wx.Frame):
     def __init__(self, com_port):
+        self.comunication_thread = None
+        self.timer_thread = None
         wx.Frame.__init__(
             self, None, title="EasyDAQ", style=wx.DEFAULT_FRAME_STYLE &
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
@@ -1174,8 +1188,8 @@ class MainFrame(wx.Frame):
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
-            comunication_thread.stop_thread()
-            timer_thread.stop_thread()
+            self.comunication_thread.stop_thread()
+            self.timer_thread.stop_thread()
             self.daq.close()
             self.Destroy()
 
@@ -1192,8 +1206,8 @@ class MainFrame(wx.Frame):
         if suma == 0:
             self.p.button_play.Enable(True)
             self.p.button_stop.Enable(False)
-            comunication_thread.stop()
-            timer_thread.stop()
+            self.comunication_thread.stop()
+            self.timer_thread.stop()
 
 
 class InitDlg(wx.Dialog):
@@ -1287,16 +1301,16 @@ class MyApp(wx.App):
 
 
 def main():
-    global frame, comunication_thread, timer_thread
-    comunication_thread = ComThread()
-    comunication_thread.start()
-    timer_thread = TimerThread()
-    timer_thread.start()
-
     app = MyApp(False)
 
     if app.connected:
         frame = MainFrame(app.com_port)
+        comunication_thread = ComThread(frame)
+        timer_thread = TimerThread(frame)
+        frame.comunication_thread = comunication_thread
+        frame.timer_thread = timer_thread
+        comunication_thread.start()
+        timer_thread.start()
         frame.Centre()
         frame.Show()
         app.MainLoop()

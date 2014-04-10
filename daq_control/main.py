@@ -83,7 +83,8 @@ def scan(num_ports=20, verbose=True):
 
 
 class ComThread (threading.Thread):
-    def __init__(self):
+    def __init__(self, frame):
+        self.frame = frame
         threading.Thread.__init__(self)
         self.running = self.running_thread = 1
         self.x = []
@@ -92,12 +93,12 @@ class ComThread (threading.Thread):
         self.delay = 0.001
 
     def config(self, ch_1, ch_2, rangeV, rate):
-        frame.daq.conf_adc(ch_1+1, ch_2, rangeV, 20)
+        self.frame.daq.conf_adc(ch_1+1, ch_2, rangeV, 20)
         self.delay = rate / 1000.0
 
     def stop(self):
         self.running = 0
-        frame.daq.set_led(1)
+        self.frame.daq.set_led(1)
 
     def stop_thread(self):
         self.running_thread = 0
@@ -121,18 +122,19 @@ class ComThread (threading.Thread):
                 time.sleep(0.1)
                 time_to_repaint += 0.1
                 time_to_capture += 0.1
-                
+
                 if time_to_capture >= self.delay:
                     time_to_capture = 0
-                    data = frame.daq.read_analog()
-                    if frame.page_1.hw_ver == 2:
+                    data = self.frame.daq.read_analog()
+                    if self.frame.page_1.hw_ver == 2:
+                        page_1 = self.frame.page_1
                         data /= (
-                            frame.page_1.multiplier_list[frame.page_1.range])
-                    frame.page_1.data_packet.append(data)
-                    frame.page_1.x.append(float(data))
-                    frame.page_1.y.append(
-                        float((len(frame.page_1.x)-1) * (
-                            frame.page_1.rate / 1000)))
+                            page_1.multiplier_list[self.frame.page_1.range])
+                    self.frame.page_1.data_packet.append(data)
+                    self.frame.page_1.x.append(float(data))
+                    self.frame.page_1.y.append(
+                        float((len(self.frame.page_1.x)-1) * (
+                            self.frame.page_1.rate / 1000)))
 
                 if time_to_repaint >= 0.2:
                     time_to_repaint = 0
@@ -140,7 +142,8 @@ class ComThread (threading.Thread):
 
 
 class TimerThread (threading.Thread):
-    def __init__(self):
+    def __init__(self, frame):
+        self.frame = frame
         threading.Thread.__init__(self)
         self.running = 1
         self.delay = 0.25
@@ -170,14 +173,15 @@ class TimerThread (threading.Thread):
             time.sleep(self.delay)
 
             if self.counter_flag:
-                counter = frame.daq.get_counter(0)
+                counter = self.frame.daq.get_counter(0)
                 wx.CallAfter(Publisher().sendMessage, "counter_value", counter)
             if self.capture_flag:
                 mode, capture = (
-                    frame.daq.get_capture(frame.page_4.rb.GetSelection()))
+                    self.frame.daq.get_capture(
+                        self.frame.page_4.rb.GetSelection()))
                 wx.CallAfter(Publisher().sendMessage, "capture_value", capture)
             if self.encoder_flag:
-                encoder = frame.daq.get_encoder()[0]
+                encoder = self.frame.daq.get_encoder()[0]
                 wx.CallAfter(Publisher().sendMessage, "encoder_value", encoder)
 
 
@@ -195,7 +199,8 @@ class MyCustomToolbar(NavigationToolbar2Wx):
 
 
 class PageOne(wx.Panel):
-    def __init__(self, parent, hw_ver):
+    def __init__(self, parent, hw_ver, frame):
+        self.frame = frame
         self.multiplier_list = [1, 2, 4, 5, 8, 10, 16, 20]
         wx.Panel.__init__(self, parent)
         self.hw_ver = hw_ver
@@ -330,13 +335,13 @@ class PageOne(wx.Panel):
                     return
                 if(self.toolbar.mode == "zoom rect"):
                     return
-                self.canvas.mpl_disconnect(frame.page_1.cidUpdate)
+                self.canvas.mpl_disconnect(self.frame.page_1.cidUpdate)
                 self.axes.cla()
                 self.axes.grid(color='gray', linestyle='dashed')
                 self.axes.plot(self.y, self.x)
                 self.canvas.draw()
-                self.cidUpdate = frame.page_1.canvas.mpl_connect(
-                    'motion_notify_event', frame.page_1.UpdateStatusBar)
+                self.cidUpdate = self.frame.page_1.canvas.mpl_connect(
+                    'motion_notify_event', self.frame.page_1.UpdateStatusBar)
 
     def clear_canvas(self, msg):
         self.input_value.Clear()
@@ -348,7 +353,7 @@ class PageOne(wx.Panel):
     def UpdateStatusBar(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            frame.status_bar.SetStatusText(
+            self.frame.status_bar.SetStatusText(
                 ("x= " + "%.4g" % x + "  y=" + "%.4g" % y), 1)
 
     def add_toolbar(self):
@@ -385,9 +390,10 @@ class PageOne(wx.Panel):
             self.directory_name = dlg.GetDirectory()
             with open(self.directory_name+"\\"+self.file_name, 'wb') as file:
                 spamwriter = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
-                for i in range(len(comunication_thread.data)):
+                for i in range(len(self.frame.comunication_thread.data)):
                     spamwriter.writerow(
-                        [comunication_thread.x[i], comunication_thread.y[i]])
+                        [self.frame.comunication_thread.x[i],
+                            self.frame.comunication_thread.y[i]])
         dlg.Destroy()
 
     def zoom_up(self, event):
@@ -404,13 +410,13 @@ class PageOne(wx.Panel):
         self.edit_rate.SetValue(self.edit_rate.GetValue())
         self.edit_value.SetValue(self.edit_value.GetValue())
         if self.ch_1 == -1:
-            frame.show_error_parameters()
+            self.frame.show_error_parameters()
             return
         if self.ch_2 == -1:
-            frame.show_error_parameters()
+            self.frame.show_error_parameters()
             return
         if self.range == -1:
-            frame.show_error_parameters()
+            self.frame.show_error_parameters()
             return
         if self.hw_ver == 2 and self.ch_2 == 1:
             self.ch_2 = self.edit_ch_2.GetValue()
@@ -420,7 +426,7 @@ class PageOne(wx.Panel):
                 self.ch_2 = 25
             elif self.ch_2 > 1:
                 self.ch_2 += 3
-        comunication_thread.config(
+        self.frame.comunication_thread.config(
             self.ch_1, int(self.ch_2), self.range, self.rate)
         self.button_play.Enable(False)
         self.button_stop.Enable(True)
@@ -428,13 +434,13 @@ class PageOne(wx.Panel):
         self.edit_ch_2.Enable(False)
         self.edit_range.Enable(False)
         self.edit_rate.Enable(False)
-        frame.daq.set_led(3)
+        self.frame.daq.set_led(3)
         wx.CallAfter(Publisher().sendMessage, "clearcanvas", None)
-        if comunication_thread.is_alive():
-            comunication_thread.restart()
+        if self.frame.comunication_thread.is_alive():
+            self.frame.comunication_thread.restart()
         else:
-            comunication_thread.start()
-            comunication_thread.stop()
+            self.frame.comunication_thread.start()
+            self.frame.comunication_thread.stop()
             self.play_event(0)
 
     def stop_event(self, event):
@@ -448,12 +454,12 @@ class PageOne(wx.Panel):
                 or (self.hw_ver == 2 and self.edit_ch_2.GetValue() != "AGND")):
                     self.edit_range.Enable(True)
 
-        frame.daq.set_led(1)
-        comunication_thread.stop()
+        self.frame.daq.set_led(1)
+        self.frame.comunication_thread.stop()
 
     def slider_change(self, event):
         dac_value = self.edit_value.GetValue()
-        frame.daq.set_analog(dac_value)
+        self.frame.daq.set_analog(dac_value)
 
     def edit_ch_1_change(self, event):
         if self.hw_ver == 1:
@@ -480,7 +486,8 @@ class PageOne(wx.Panel):
 
 
 class PageThree(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, frame):
+        self.frame = frame
         wx.Panel.__init__(self, parent)
         index_1 = 100
         self.rb = []
@@ -541,12 +548,10 @@ class PageThree(wx.Panel):
         self.rb[number-1].Enable(False)
         self.buttons[number-1].Enable(False)
 
-
     def activate_digital(self, number):
         self.label[number-1].Enable(True)
         self.rb[number-1].Enable(True)
         self.buttons[number-1].Enable(True)
-
 
     def update_event(self, event):
         self.status = 0
@@ -556,8 +561,8 @@ class PageThree(wx.Panel):
                 self.status = self.status | (1 << i)
             else:
                 self.output[i] = False
-        frame.daq.set_port_dir(self.status)
-        value_input = frame.daq.set_port(self.values)
+        self.frame.daq.set_port_dir(self.status)
+        value_input = self.frame.daq.set_port(self.values)
         for i in range(6):
             if value_input & (1 << i):
                 if self.output[i] is False:
@@ -569,10 +574,10 @@ class PageThree(wx.Panel):
                     self.buttons[i].SetBitmapLabel(self.image_red)
                 else:
                     self.buttons[i].SetBitmapLabel(self.image_switch_off)
-        frame.page_4.stop_counter_event(self)
-        frame.page_4.stop_pwm_event(self)
-        frame.page_4.stop_capture_event(self)
-        timer_thread.stop()
+        self.frame.page_4.stop_counter_event(self)
+        self.frame.page_4.stop_pwm_event(self)
+        self.frame.page_4.stop_capture_event(self)
+        self.frame.timer_thread.stop()
 
     def output_change(self, event):
         button = event.GetEventObject()
@@ -586,13 +591,14 @@ class PageThree(wx.Panel):
                 self.value[index_1] = True
                 button.SetBitmapLabel(self.image_switch_on)
                 self.values = self.values | (1 << index_1)
-        frame.daq.set_port(self.values)
+        self.frame.daq.set_port(self.values)
 
 
 class PageFour(wx.Panel):
-    def __init__(self, parent, page_1):
+    def __init__(self, parent, frame):
+        self.frame = frame
         wx.Panel.__init__(self, parent)
-        self.page_1 = page_1
+        self.page_1 = self.frame.page_1
         self.pwm_label = wx.StaticBox(self, -1, 'PWM:')
         self.pwm_grap_horizontal_sizer = wx.StaticBoxSizer(
             self.pwm_label, wx.VERTICAL)
@@ -731,31 +737,31 @@ class PageFour(wx.Panel):
         self.reset_pwm.Enable(True)
         self.get_counter.Clear()
         self.get_capture.Clear()
-        timer_thread.stop()
+        self.frame.timer_thread.stop()
         self.period = self.period_edit.GetValue()
         self.period_edit.SetValue(self.period)
         self.duty = self.duty_edit.GetValue() * 1023 / 100
-        frame.daq.init_pwm(self.duty, self.period)
+        self.frame.daq.init_pwm(self.duty, self.period)
 
     def start_counter(self, event):
-        frame.daq.init_counter(0)
+        self.frame.daq.init_counter(0)
         self.deactivate_starts()
         self.stop_counter.Enable(True)
         self.get_counter.Clear()
-        timer_thread.start_counter()
+        self.frame.timer_thread.start_counter()
 
     def start_capture(self, event):
-        frame.daq.init_capture(2000)
+        self.frame.daq.init_capture(2000)
         self.deactivate_starts()
         self.stop_capture.Enable(True)
         self.get_capture.Clear()
-        timer_thread.start_capture()
+        self.frame.timer_thread.start_capture()
 
     def stop_capture_event(self, event):
-        frame.daq.stop_capture()
+        self.frame.daq.stop_capture()
         self.activate_starts()
         self.stop_capture.Enable(False)
-        timer_thread.stop()
+        self.frame.timer_thread.stop()
 
     def reset_pwm_event(self, event):
         self.stop_pwm_event(0)
@@ -765,14 +771,14 @@ class PageFour(wx.Panel):
         self.activate_starts()
         self.reset_pwm.Enable(False)
         self.stop_pwm.Enable(False)
-        frame.daq.stop_capture()
-        frame.daq.stop_pwm()
+        self.frame.daq.stop_capture()
+        self.frame.daq.stop_pwm()
 
     def stop_counter_event(self, event):
-        frame.daq.stop_capture()
+        self.frame.daq.stop_capture()
         self.activate_starts()
         self.stop_counter.Enable(False)
-        timer_thread.stop()
+        self.frame.timer_thread.stop()
 
     def start_encoder_event(self, event):
         if self.mode_encoder.GetSelection() == 0:
@@ -799,37 +805,39 @@ class PageFour(wx.Panel):
         else:
             self.encoder_resolution = 0
         self.encoder_value.Enable(False)
-        frame.daq.init_encoder(self.encoder_resolution)
+        self.frame.daq.init_encoder(self.encoder_resolution)
         self.deactivate_starts()
-        frame.page_3.deactivate_digital(6)
+        self.frame.page_3.deactivate_digital(6)
         self.stop_encoder.Enable(True)
-        timer_thread.start_encoder()
+        self.frame.timer_thread.start_encoder()
 
     def stop_encoder_event(self, event):
         self.activate_starts()
-        frame.page_3.activate_digital(6)
+        self.frame.page_3.activate_digital(6)
         self.encoder_value.Enable(True)
-        frame.daq.stop_encoder()
+        self.frame.daq.stop_encoder()
         self.stop_encoder.Enable(False)
-        timer_thread.stop()
+        self.frame.timer_thread.stop()
 
     def activate_starts(self):
         self.set_counter.Enable(True)
         self.set_capture.Enable(True)
         self.set_encoder.Enable(True)
         self.set_pwm.Enable(True)
-        frame.page_3.activate_digital(5)
+        self.frame.page_3.activate_digital(5)
 
     def deactivate_starts(self):
         self.set_counter.Enable(False)
         self.set_capture.Enable(False)
         self.set_encoder.Enable(False)
         self.set_pwm.Enable(False)
-        frame.page_3.deactivate_digital(5)
+        self.frame.page_3.deactivate_digital(5)
 
 
 class MainFrame(wx.Frame):
     def __init__(self, port):
+        self.comunication_thread = None
+        self.timer_thread = None
         wx.Frame.__init__(
             self, None, title="DAQControl",
             style=wx.DEFAULT_FRAME_STYLE &
@@ -852,11 +860,11 @@ class MainFrame(wx.Frame):
         self.p = wx.Panel(self)
         self.note_book = wx.Notebook(self.p)
         # create the page windows as children of the notebook
-        self.page_1 = PageOne(self.note_book, info[0])
+        self.page_1 = PageOne(self.note_book, info[0], self)
         self.page_1.SetBackgroundColour('#ece9d8')
-        self.page_3 = PageThree(self.note_book)
+        self.page_3 = PageThree(self.note_book, self)
         self.page_3.SetBackgroundColour('#ece9d8')
-        self.page_4 = PageFour(self.note_book, self.page_1)
+        self.page_4 = PageFour(self.note_book, self)
         self.page_4.SetBackgroundColour('#ece9d8')
         # add the pages to the notebook with the label to show on the tab
         self.note_book.AddPage(self.page_1, "Analog I/O")
@@ -883,10 +891,10 @@ class MainFrame(wx.Frame):
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
-            comunication_thread.stop_thread()
-            timer_thread.stop_thread()
+            self.comunication_thread.stop_thread()
+            self.timer_thread.stop_thread()
             self.Destroy()
-            frame.daq.close()
+            self.daq.close()
 
     def show_error_parameters(self):
         dlg = wx.MessageDialog(
@@ -996,21 +1004,18 @@ class MyApp(wx.App):
 
 
 def main():
-    global comunication_thread, frame, timer_thread
-    comunication_thread = ComThread()
-    timer_thread = TimerThread()
-    timer_thread.start()
-
     app = MyApp(False)
 
     if app.connected:
         frame = MainFrame(app.com_port)
+        comunication_thread = ComThread(frame)
+        timer_thread = TimerThread(frame)
+        frame.comunication_thread = comunication_thread
+        frame.timer_thread = timer_thread
+        timer_thread.start()
         frame.Centre()
         frame.Show()
         app.MainLoop()
-    else:
-        comunication_thread.stop_thread()
-        timer_thread.stop_thread()
 
 
 if __name__ == "__main__":
