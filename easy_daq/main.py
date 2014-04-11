@@ -1314,9 +1314,6 @@ def main():
         frame.Centre()
         frame.Show()
         app.MainLoop()
-    else:
-        comunication_thread.stop_thread()
-        timer_thread.stop_thread()
 
 
 if __name__ == "__main__":
