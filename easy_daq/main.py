@@ -1152,8 +1152,12 @@ class MainFrame(wx.Frame):
         self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(com_port)
         self.hw_ver = self.daq.hw_ver
+        if hasattr(sys, "frozen"):
+            executable = sys.executable
+        else:
+            executable = __file__
         icon_path = os.path.join(
-            os.path.dirname(__file__), 'resources', 'icon64.ico')
+            os.path.dirname(executable), 'resources', 'icon64.ico')
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()

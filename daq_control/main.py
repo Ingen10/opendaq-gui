@@ -499,23 +499,27 @@ class PageThree(wx.Panel):
         self.status = self.values = 0
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         grid = wx.GridBagSizer(hgap=20, vgap=20)
+        if hasattr(sys, "frozen"):
+            executable = sys.executable
+        else:
+            executable = __file__
         red_image_path = \
-            os.path.join(os.path.dirname(__file__), 'resources', 'red.jpg')
+            os.path.join(os.path.dirname(executable), 'resources', 'red.jpg')
         bm = wx.Image(red_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_red = bm.ConvertToBitmap()
         green_image_path = \
-            os.path.join(os.path.dirname(__file__), 'resources', 'green.jpg')
+            os.path.join(os.path.dirname(executable), 'resources', 'green.jpg')
         bm = wx.Image(green_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_green = bm.ConvertToBitmap()
         switchon_image_path = os.path.join(
-            os.path.dirname(__file__), 'resources', 'switchon.jpg')
+            os.path.dirname(executable), 'resources', 'switchon.jpg')
         bm = wx.Image(switchon_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_on = bm.ConvertToBitmap()
         switchoff_image_path = os.path.join(
-            os.path.dirname(__file__), 'resources', 'switchoff.jpg')
+            os.path.dirname(executable), 'resources', 'switchoff.jpg')
         bm = wx.Image(switchoff_image_path, wx.BITMAP_TYPE_ANY)
         bm.Rescale(40, 40)
         self.image_switch_off = bm.ConvertToBitmap()
@@ -845,8 +849,13 @@ class MainFrame(wx.Frame):
             ~(wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.daq = DAQ(port)
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        if hasattr(sys, "frozen"):
+            executable = sys.executable
+        else:
+            executable = __file__
+
         icon_path = os.path.join(
-            os.path.dirname(__file__), 'resources', 'icon64.ico')
+            os.path.dirname(executable), 'resources', 'icon64.ico')
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         self.status_bar = self.CreateStatusBar()
