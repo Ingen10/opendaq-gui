@@ -26,7 +26,8 @@ import time
 import serial
 from serial.tools.list_ports import comports
 from wx.lib.agw.floatspin import FloatSpin
-from wx.lib.pubsub import Publisher
+from wx.lib.pubsub import setuparg1
+from wx.lib.pubsub import pub
 
 import matplotlib
 matplotlib.use('WXAgg')
@@ -138,7 +139,7 @@ class ComThread (threading.Thread):
 
                 if time_to_repaint >= 0.2:
                     time_to_repaint = 0
-                    wx.CallAfter(Publisher().sendMessage, "newdata", data)
+                    wx.CallAfter(pub.sendMessage, "newdata", data)
 
 
 class TimerThread (threading.Thread):
@@ -174,15 +175,15 @@ class TimerThread (threading.Thread):
 
             if self.counter_flag:
                 counter = self.frame.daq.get_counter(0)
-                wx.CallAfter(Publisher().sendMessage, "counter_value", counter)
+                wx.CallAfter(pub.sendMessage, "counter_value", counter)
             if self.capture_flag:
                 mode, capture = (
                     self.frame.daq.get_capture(
                         self.frame.page_4.rb.GetSelection()))
-                wx.CallAfter(Publisher().sendMessage, "capture_value", capture)
+                wx.CallAfter(pub.sendMessage, "capture_value", capture)
             if self.encoder_flag:
                 encoder = self.frame.daq.get_encoder()[0]
-                wx.CallAfter(Publisher().sendMessage, "encoder_value", encoder)
+                wx.CallAfter(pub.sendMessage, "encoder_value", encoder)
 
 
 class MyCustomToolbar(NavigationToolbar2Wx):
@@ -323,8 +324,8 @@ class PageOne(wx.Panel):
         self.y = []
 
         # Create a publisher receiver
-        Publisher().subscribe(self.new_data, "newdata")
-        Publisher().subscribe(self.clear_canvas, "clearcanvas")
+        pub.subscribe(self.new_data, "newdata")
+        pub.subscribe(self.clear_canvas, "clearcanvas")
 
     def new_data(self, msg):
         data = msg.data
@@ -435,7 +436,7 @@ class PageOne(wx.Panel):
         self.edit_range.Enable(False)
         self.edit_rate.Enable(False)
         self.frame.daq.set_led(3)
-        wx.CallAfter(Publisher().sendMessage, "clearcanvas", None)
+        wx.CallAfter(pub.sendMessage, "clearcanvas", None)
         if self.frame.comunication_thread.is_alive():
             self.frame.comunication_thread.restart()
         else:
@@ -703,9 +704,9 @@ class PageFour(wx.Panel):
         self.SetSizer(main_sizer)
 
         #Create publisher receiver
-        Publisher().subscribe(self.refresh_counter, "counter_value")
-        Publisher().subscribe(self.refresh_capture, "capture_value")
-        Publisher().subscribe(self.refresh_encoder, "encoder_value")
+        pub.subscribe(self.refresh_counter, "counter_value")
+        pub.subscribe(self.refresh_capture, "capture_value")
+        pub.subscribe(self.refresh_encoder, "encoder_value")
 
     def refresh_counter(self, msg):
         if isinstance(msg.data, int):

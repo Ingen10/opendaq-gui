@@ -25,7 +25,8 @@ import threading
 import fractions
 import time
 from wx.lib.agw.floatspin import FloatSpin
-from wx.lib.pubsub import Publisher
+from wx.lib.pubsub import setuparg1
+from wx.lib.pubsub import pub
 import csv
 import serial
 from serial.tools.list_ports import comports
@@ -108,7 +109,7 @@ class TimerThread (threading.Thread):
             #time.sleep(self.delay)
             time.sleep(1)
             if self.drawing:
-                wx.CallAfter(Publisher().sendMessage, "refresh")
+                wx.CallAfter(pub.sendMessage, "refresh")
                 self.end_time = time.time()
 
 
@@ -248,7 +249,7 @@ class ComThread (threading.Thread):
                     self.time = self.delay * len(self.x[self.ch[i]])
                     self.x[self.ch[i]].append(float(data_int))
                     self.y[self.ch[i]].append(self.time)
-                wx.CallAfter(Publisher().sendMessage, "stop")
+                wx.CallAfter(pub.sendMessage, "stop")
                 self.stopping = 0
 
     def transform_data(self, data):
@@ -795,8 +796,8 @@ class InterfazPanel(wx.Panel):
         self.SetSizerAndFit(main_sizer)
 
         #Create publisher receiver
-        Publisher().subscribe(self.refresh, "refresh")
-        Publisher().subscribe(self.stop, "stop")
+        pub.subscribe(self.refresh, "refresh")
+        pub.subscribe(self.stop, "stop")
 
     def refresh(self, msg):
         if(self.toolbar.mode == "pan/zoom"):
