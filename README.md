@@ -3,7 +3,7 @@ opendaq-gui
 
 Some demo GUI interfaces for openDAQ, implemented in Python.
 
-These demos require Python 2.7.
+These demos require Python 2.7.6
 
 **OpenDAQ** is an open source data acquisition instrument, which provides user
 several physical interaction capabilities such as analog inputs and outputs,
@@ -29,5 +29,28 @@ calibration.py
 --------------
 [calibration.py](http://www.open-daq.com/posts/understanding-calibration-py-demo-i) is a demo intended to illustrate the process of device calibrating and checking.
 
+Installation
+============
 
+Just download the files and run: 
+
+`$ python setup.py install`
+
+In any case, if for any reason the setup fails, EasyDAQ and DAQControl demos will require the following packages:
+
+- opendaq (can be found in our root repository)
+
+- setuptools
+
+- wxPython
+
+- numpy
+
+- matplotlib 
+
+- dateutil
+
+- pyparsing
+
+In Windows, you will need to include the route "C:\Python27\Scripts" into the system "Path" variable, if it does not already exist (System->Advanced Settings).
 
