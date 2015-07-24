@@ -955,15 +955,21 @@ class InterfazPanel(wx.Panel):
             # Cut signal buffer into x length buffers
             x_length = 20
             num_buffers = len(self.buffer) / x_length
+            clear_buffer = True
             for i in range(num_buffers):
                 self.init = i * x_length
                 self.end = self.init + x_length
                 self.inter_buffer = self.buffer[self.init:self.end]
-                EXPERIMENTS[position].load_signal(self.inter_buffer, self.init)
+                EXPERIMENTS[position].load_signal(
+                    self.inter_buffer, self.init, clear=clear_buffer)
+                if clear_buffer:
+                    clear_buffer = False
+
             self.init = num_buffers * x_length
             self.inter_buffer = self.buffer[self.init:]
             if len(self.inter_buffer) > 0:
-                EXPERIMENTS[position].load_signal(self.inter_buffer, self.init)
+                EXPERIMENTS[position].load_signal(
+                    self.inter_buffer, self.init, clear=clear_buffer)
         self.button_play.Enable(False)
         self.button_stop.Enable(True)
         self.frame.timer_thread.start_drawing()
