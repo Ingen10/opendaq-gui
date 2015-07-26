@@ -180,7 +180,7 @@ class ComThread (threading.Thread):
                     frame.p.stop_event(None)
 
             if self.stopping:
-                frame.daq.stop_2()
+                frame.daq.halt(clear=True)
                 self.stopping = 0
 
                 for i in range(4):
@@ -734,7 +734,7 @@ class InterfazPanel(wx.Panel):
         # Create publisher receiver
         pub.subscribe(self.refresh, "refresh")
         pub.subscribe(self.stop, "stop")
-
+     
     def refresh(self, msg):
         if(self.toolbar.mode == "pan/zoom"):
             return
@@ -1136,6 +1136,9 @@ class MainFrame(wx.Frame):
         self.offset = []
         self.gains, self.offset = self.daq.get_cal()
 
+    def __del__(self):
+        self.daq.stop()
+
     def set_voltage(self, voltage):
         self.daq.set_analog(voltage)
 
@@ -1145,10 +1148,10 @@ class MainFrame(wx.Frame):
             "Confirm Exit", wx.OK | wx.CANCEL | wx.ICON_QUESTION)
         result = dlg.ShowModal()
         dlg.Destroy()
+        self.daq.close()
         if result == wx.ID_OK:
             self.comunication_thread.stop_thread()
             self.timer_thread.stop_thread()
-            self.daq.close()
             self.Destroy()
 
     def show_error_parameters(self):
