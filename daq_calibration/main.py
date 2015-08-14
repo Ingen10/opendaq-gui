@@ -82,7 +82,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.daq = DAQ(com_port)
         self.daq.enable_crc(1)
-        self.hw_ver = self.daq.hw_ver
+        self.hw_ver = self.daq.hw_ver()
         self.adc_gains = []
         self.adc_offset = []
         self.adc_gains, self.adc_offset = self.daq.get_cal()

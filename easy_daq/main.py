@@ -1104,7 +1104,7 @@ class MainFrame(wx.Frame):
             (wx.RESIZE_BORDER | wx.RESIZE_BOX | wx.MAXIMIZE_BOX))
         self.colors = 'r', 'g', 'b', 'k'
         self.daq = DAQ(com_port)
-        self.hw_ver = self.daq.hw_ver
+        self.hw_ver = self.daq.hw_ver()
         if hasattr(sys, "frozen"):
             executable = sys.executable
         else:
