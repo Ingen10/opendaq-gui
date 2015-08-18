@@ -352,7 +352,7 @@ class StreamDialog(wx.Dialog):
 
     def submit_event(self, event):
         frame = self.frame
-        if frame.daq.measuring:
+        if frame.daq.is_measuring():
             dlg = wx.MessageDialog(
                 self, "openDAQ is measuring. Stop first.", "Stop first",
                 wx.OK | wx.ICON_ERROR)
@@ -770,6 +770,7 @@ class InterfazPanel(wx.Panel):
                 frame.comunication_thread.x[i], color=frame.colors[i])
         frame.p.canvas.draw()
         frame.daq.flush()
+        """
         for i in range(4):
             if frame.p.enable_check[i].GetValue():
                 try:
@@ -777,7 +778,8 @@ class InterfazPanel(wx.Panel):
                 except:
                     frame.daq.flush()
                     print "Error trying to destroy channel"
-
+        """
+        frame.daq.clear_experiments()
         frame.p.stopping_label.SetLabel("")
         frame.p.button_play.Enable(True)
 
