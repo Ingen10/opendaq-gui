@@ -82,7 +82,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.daq = DAQ(com_port)
         self.daq.enable_crc(1)
-        self.hw_ver = self.daq.hw_ver
+        self.hw_ver = self.daq.hw_ver()
         self.adc_gains = []
         self.adc_offset = []
         self.adc_gains, self.adc_offset = self.daq.get_cal()
@@ -279,11 +279,7 @@ class AdcPage(wx.Panel):
     def update_event(self, event):
         self.range = self.edit_range.GetCurrentSelection()
         if self.frame.hw_ver == "s":
-            input = self.selection.GetCurrentSelection() + 1
-            if input % 2 == 0:
-                ninput = input -1
-            else:
-                ninput = input +1
+            input = self.selection.GetCurrentSelection()+1
         button = event.GetEventObject()
         index1 = button.GetId()-100
         if self.frame.hw_ver == "m":
@@ -292,7 +288,7 @@ class AdcPage(wx.Panel):
             if self.range == 0:  # SE
                 self.frame.daq.conf_adc(input)
             if self.range == 1:  # DE
-                self.frame.daq.conf_adc(input, ninput)
+                self.frame.daq.conf_adc(input, 1)
         time.sleep(0.5)
         data_int = self.frame.daq.read_adc()
         time.sleep(0.5)
